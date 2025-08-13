@@ -1,0 +1,11 @@
+eaf584e2b2f4a2c6a314ffc8fc1c75b6  usr/bin/bluetooth-screen-lock
+58c2d3d59daaa2b4cabadf0abfecbfc6  usr/share/applications/bluetooth-screen-lock.desktop
+79608d4aafe0cb197908a3201b8028d8  usr/share/bluetooth-screen-lock/run.py
+385f909ef8d79cee6f0a29b311b9722b  usr/share/bluetooth-screen-lock/src/bluetooth_screen_lock/__init__.py
+285edf6f2fbdb0ea94729755c1ed639c  usr/share/bluetooth-screen-lock/src/bluetooth_screen_lock/app.py
+26221169c95a926c5aad22dab289aa79  usr/share/bluetooth-screen-lock/src/bluetooth_screen_lock/config.py
+e990eb8d026bb9e7495b92f6af8ccd89  usr/share/bluetooth-screen-lock/src/bluetooth_screen_lock/indicator.py
+0374b0dbc9fc772dff63b09ba799c2db  usr/share/bluetooth-screen-lock/src/bluetooth_screen_lock/monitor.py
+5fdbd3059c1ab7b662afacb8094ee3dc  usr/share/bluetooth-screen-lock/src/bluetooth_screen_lock/settings.py
+84db55aaf9766987c74a762c9bcf866c  usr/share/doc/bluetooth-screen-lock/changelog.Debian.gz
+5100a1844adf0e70310a37ee03f96398  usr/share/icons/hicolor/512x512/apps/bluetooth-screen-lock.png/bluetooth_screen_lock.png

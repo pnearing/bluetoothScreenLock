@@ -1,0 +1,5 @@
+scripts/bluetooth-screen-lock usr/bin/
+bluetooth-screen-lock.desktop usr/share/applications/
+bluetooth_screen_lock.png usr/share/icons/hicolor/512x512/apps/bluetooth-screen-lock.png
+run.py usr/share/bluetooth-screen-lock/
+src/bluetooth_screen_lock usr/share/bluetooth-screen-lock/src/

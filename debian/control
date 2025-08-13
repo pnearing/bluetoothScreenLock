@@ -1,0 +1,14 @@
+Source: bluetooth-screen-lock
+Section: utils
+Priority: optional
+Maintainer: Your Name <you@example.com>
+Standards-Version: 4.7.0
+Build-Depends: debhelper-compat (= 13)
+Rules-Requires-Root: no
+
+Package: bluetooth-screen-lock
+Architecture: all
+Depends: ${misc:Depends}, python3, python3-gi, gir1.2-gtk-3.0, gir1.2-appindicator3-0.1 | gir1.2-ayatanaappindicator3-0.1, python3-bleak, bluez
+Description: Lock the screen based on Bluetooth proximity (GTK tray)
+ A small GNOME/GTK tray app that locks the screen when your paired
+ Bluetooth device moves away, using BLE RSSI via Bleak.

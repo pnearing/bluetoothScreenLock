@@ -1,0 +1,5 @@
+./scripts/bluetooth-screen-lock
+./bluetooth-screen-lock.desktop
+./bluetooth_screen_lock.png
+./run.py
+./src/bluetooth_screen_lock
