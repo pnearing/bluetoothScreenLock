@@ -55,7 +55,7 @@ class TrayIndicator:
 
         self._indicator = AppIndicator.Indicator.new(
             self._app_id,
-            "network-wireless",  # use an available icon name
+            "bluetooth-screen-lock",  # use themed app icon name
             AppIndicator.IndicatorCategory.APPLICATION_STATUS,
         )
         self._indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)

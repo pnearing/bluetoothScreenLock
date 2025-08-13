@@ -1,4 +1,6 @@
 import asyncio
+import os
+import shutil
 import subprocess
 import threading
 import logging
@@ -27,6 +29,12 @@ class App:
             on_open_settings=self._open_settings,
             on_quit=self.quit,
         )
+
+        # Ensure autostart entry reflects current config on startup
+        try:
+            self._apply_autostart(self._cfg.autostart)
+        except Exception:
+            logger.exception("Failed to apply autostart on startup")
 
         self._loop = asyncio.new_event_loop()
         self._loop_thread = threading.Thread(target=self._run_loop, daemon=True)
@@ -89,6 +97,8 @@ class App:
             device_name=self._cfg.device_name,
             rssi_threshold=self._cfg.rssi_threshold,
             grace_period_sec=self._cfg.grace_period_sec,
+            autostart=self._cfg.autostart,
+            start_delay_sec=self._cfg.start_delay_sec,
         )
         win = SettingsWindow(initial)
         win.set_transient_for(None)
@@ -103,6 +113,13 @@ class App:
             self._cfg.device_name = result.device_name
             self._cfg.rssi_threshold = result.rssi_threshold
             self._cfg.grace_period_sec = result.grace_period_sec
+            # Handle autostart toggle or delay change
+            autostart_changed = (self._cfg.autostart != result.autostart)
+            delay_changed = (self._cfg.start_delay_sec != result.start_delay_sec)
+            self._cfg.autostart = result.autostart
+            self._cfg.start_delay_sec = max(0, int(result.start_delay_sec))
+            if autostart_changed or (self._cfg.autostart and delay_changed):
+                self._apply_autostart(self._cfg.autostart)
             save_config(self._cfg)
             self._indicator.set_status("Monitoring" if result.device_mac else "Idle")
             if self._monitor and result.device_mac:
@@ -116,6 +133,112 @@ class App:
                 self._ensure_monitor()
 
         win.connect("hide", on_hide)
+
+    def _apply_autostart(self, enable: bool) -> None:
+        """Create or remove the autostart .desktop entry for this app."""
+        try:
+            autostart_dir = os.path.join(os.path.expanduser("~"), ".config", "autostart")
+            os.makedirs(autostart_dir, exist_ok=True)
+            dst = os.path.join(autostart_dir, "bluetooth-screen-lock.desktop")
+
+            if enable:
+                # Prefer copying existing applications desktop if available for consistency
+                src = os.path.join(os.path.expanduser("~"), ".local", "share", "applications", "bluetooth-screen-lock.desktop")
+                if os.path.exists(src):
+                    shutil.copyfile(src, dst)
+                else:
+                    # Fallback: generate a minimal desktop entry
+                    exec_cmd = os.path.join(os.path.expanduser("~"), ".local", "bin", "bluetooth-screen-lock")
+                    if not os.path.exists(exec_cmd):
+                        # fall back to running via python and project path
+                        project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+                        run_path = os.path.join(project_dir, "run.py")
+                        exec_cmd = f"python3 {run_path}"
+                    exec_path = self._wrap_with_delay(exec_cmd)
+                    content = (
+                        "[Desktop Entry]\n"
+                        "Type=Application\n"
+                        "Name=Bluetooth Screen Lock\n"
+                        "Comment=Lock/unlock the screen based on Bluetooth proximity\n"
+                        f"Exec={exec_path}\n"
+                        "Icon=bluetooth-screen-lock\n"
+                        "Terminal=false\n"
+                        "Categories=Utility;GTK;\n"
+                        "X-GNOME-UsesNotifications=true\n"
+                        "X-GNOME-Autostart-enabled=true\n"
+                        "Hidden=false\n"
+                    )
+                    with open(dst, "w", encoding="utf-8") as f:
+                        f.write(content)
+                # Ensure autostart flags and adjust Exec for delay if needed
+                self._ensure_autostart_flags(dst)
+                self._ensure_exec_delay(dst)
+                logger.info("Autostart enabled")
+            else:
+                if os.path.exists(dst):
+                    os.remove(dst)
+                logger.info("Autostart disabled")
+        except Exception:
+            logger.exception("Failed to apply autostart setting")
+
+    @staticmethod
+    def _ensure_autostart_flags(desktop_path: str) -> None:
+        """Ensure the desktop file has autostart-related keys set correctly."""
+        try:
+            # Read, tweak keys, write back (simple line-based edits)
+            if not os.path.exists(desktop_path):
+                return
+            with open(desktop_path, "r", encoding="utf-8") as f:
+                lines = f.read().splitlines()
+            def upsert(key: str, val: str) -> None:
+                nonlocal lines
+                prefix = key + "="
+                for i, line in enumerate(lines):
+                    if line.startswith(prefix):
+                        lines[i] = prefix + val
+                        break
+                else:
+                    lines.append(prefix + val)
+            upsert("X-GNOME-Autostart-enabled", "true")
+            upsert("Hidden", "false")
+            with open(desktop_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+        except Exception:
+            logger.exception("Failed to ensure autostart flags on %s", desktop_path)
+
+    def _ensure_exec_delay(self, desktop_path: str) -> None:
+        """Ensure the Exec line includes the configured delay if any."""
+        try:
+            if not os.path.exists(desktop_path):
+                return
+            with open(desktop_path, "r", encoding="utf-8") as f:
+                lines = f.read().splitlines()
+            for i, line in enumerate(lines):
+                if line.startswith("Exec="):
+                    orig = line[len("Exec="):]
+                    # Extract the actual command we want to run, ignoring previous wrapper
+                    # If it already includes a sleep wrapper, do a simple replace.
+                    if "/bin/sh -c" in orig or "bash -lc" in orig:
+                        # naive approach: replace entire line with rebuilt wrapper using the tail command as-is
+                        # Try to find the last ';' and take the right side as command, else keep as-is
+                        cmd = orig
+                    else:
+                        cmd = orig
+                    wrapped = self._wrap_with_delay(cmd)
+                    lines[i] = "Exec=" + wrapped
+                    break
+            with open(desktop_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+        except Exception:
+            logger.exception("Failed to ensure Exec delay on %s", desktop_path)
+
+    def _wrap_with_delay(self, cmd: str) -> str:
+        delay = max(0, int(getattr(self._cfg, "start_delay_sec", 0)))
+        if delay <= 0:
+            return cmd
+        # Use POSIX sh to avoid dependency on bash
+        # Quote the command safely
+        return f"/bin/sh -c 'sleep {delay}; exec {cmd}'"
 
     def run(self) -> None:
         logger.info("GTK main loop starting")

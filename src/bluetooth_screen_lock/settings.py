@@ -20,12 +20,14 @@ class SettingsResult:
     device_name: Optional[str]
     rssi_threshold: int
     grace_period_sec: int
+    autostart: bool
+    start_delay_sec: int
 
 
 class SettingsWindow(Gtk.Window):
     def __init__(self, initial: SettingsResult) -> None:
         super().__init__(title="Bluetooth Screen Lock Settings")
-        self.set_default_size(420, 260)
+        self.set_default_size(460, 360)
         self.set_border_width(12)
         logger.debug("SettingsWindow created with initial: mac=%s name=%s rssi=%s grace=%s",
                      initial.device_mac, initial.device_name, initial.rssi_threshold, initial.grace_period_sec)
@@ -33,6 +35,7 @@ class SettingsWindow(Gtk.Window):
         self._device_list: List[Tuple[str, str]] = []  # (name, mac)
         self._selected_mac: Optional[str] = initial.device_mac
         self._selected_name: Optional[str] = initial.device_name
+        self._autostart: bool = initial.autostart
 
         grid = Gtk.Grid(column_spacing=10, row_spacing=10)
         self.add(grid)
@@ -101,10 +104,38 @@ class SettingsWindow(Gtk.Window):
         )
         grid.attach(self.spn_grace, 2, 2, 2, 1)
 
+        # Autostart at login
+        self.chk_autostart = Gtk.CheckButton.new_with_label("Start at login")
+        self.chk_autostart.set_tooltip_text(
+            "Enable to launch Bluetooth Screen Lock automatically when you sign in."
+        )
+        self.chk_autostart.set_active(initial.autostart)
+        grid.attach(self.chk_autostart, 0, 3, 4, 1)
+
+        # Autostart delay
+        lbl_delay = Gtk.Label(label="Start delay (sec):")
+        lbl_delay.set_xalign(0)
+        lbl_delay.set_tooltip_text(
+            "Delay after login before starting the app."
+        )
+        grid.attach(lbl_delay, 0, 4, 2, 1)
+
+        adjustment_delay = Gtk.Adjustment(value=max(0, int(getattr(initial, 'start_delay_sec', 0))), lower=0, upper=600, step_increment=1)
+        self.spn_delay = Gtk.SpinButton()
+        self.spn_delay.set_adjustment(adjustment_delay)
+        self.spn_delay.set_digits(0)
+        self.spn_delay.set_tooltip_text("0 for no delay. Typical values: 5–30 seconds.")
+        self.spn_delay.set_sensitive(self.chk_autostart.get_active())
+        grid.attach(self.spn_delay, 2, 4, 2, 1)
+
+        def _toggle_delay(_btn: Gtk.CheckButton) -> None:
+            self.spn_delay.set_sensitive(_btn.get_active())
+        self.chk_autostart.connect("toggled", _toggle_delay)
+
         # Buttons
         btn_box = Gtk.Box(spacing=10)
         btn_box.set_halign(Gtk.Align.END)
-        grid.attach(btn_box, 0, 3, 4, 1)
+        grid.attach(btn_box, 0, 5, 4, 1)
 
         btn_cancel = Gtk.Button(label="Cancel")
         btn_cancel.connect("clicked", lambda _b: self.close())
@@ -144,6 +175,8 @@ class SettingsWindow(Gtk.Window):
             device_name=self._selected_name,
             rssi_threshold=int(self.spn_rssi.get_value()),
             grace_period_sec=int(self.spn_grace.get_value()),
+            autostart=bool(self.chk_autostart.get_active()),
+            start_delay_sec=int(self.spn_delay.get_value()),
         )
 
     def _on_scan(self, _btn: Gtk.Button) -> None:

@@ -18,6 +18,7 @@ class Config:
     rssi_threshold: int = -75  # dBm
     grace_period_sec: int = 8  # seconds below threshold before locking
     autostart: bool = False
+    start_delay_sec: int = 0  # delay app start on login
 
 
 DEFAULT_CONFIG = Config()
