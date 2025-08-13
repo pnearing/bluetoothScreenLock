@@ -1,0 +1,51 @@
+import os
+import yaml
+import logging
+from dataclasses import dataclass, asdict
+from typing import Optional
+
+
+CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", "bluetooth-screen-lock")
+CONFIG_PATH = os.path.join(CONFIG_DIR, "config.yaml")
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class Config:
+    device_mac: Optional[str] = None  # e.g., "AA:BB:CC:DD:EE:FF"
+    device_name: Optional[str] = None
+    rssi_threshold: int = -75  # dBm
+    grace_period_sec: int = 8  # seconds below threshold before locking
+    autostart: bool = False
+
+
+DEFAULT_CONFIG = Config()
+
+
+def ensure_config_dir() -> None:
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+
+
+def load_config() -> Config:
+    ensure_config_dir()
+    if not os.path.exists(CONFIG_PATH):
+        logger.info("Config not found; creating default at %s", CONFIG_PATH)
+        save_config(DEFAULT_CONFIG)
+        return DEFAULT_CONFIG
+    try:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        cfg = Config(**{**asdict(DEFAULT_CONFIG), **data})
+        logger.debug("Config loaded from %s", CONFIG_PATH)
+        return cfg
+    except Exception:
+        logger.exception("Failed to load config; using defaults")
+        return DEFAULT_CONFIG
+
+
+def save_config(config: Config) -> None:
+    ensure_config_dir()
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        yaml.safe_dump(asdict(config), f, sort_keys=False)
+    logger.debug("Config saved to %s", CONFIG_PATH)
