@@ -2,4 +2,4 @@ bluetooth-screen-lock (0.1.0-1) unstable; urgency=medium
 
   * Initial release: GTK tray app to lock screen based on Bluetooth RSSI proximity.
 
- -- Your Name <you@example.com>  Wed, 13 Aug 2025 11:25:00 -0400
+ -- Peter Nearing <me@peternearing.ca>  Wed, 13 Aug 2025 11:25:00 -0400
