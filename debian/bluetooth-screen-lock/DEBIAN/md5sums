@@ -6,6 +6,13 @@ eaf584e2b2f4a2c6a314ffc8fc1c75b6  usr/bin/bluetooth-screen-lock
 26221169c95a926c5aad22dab289aa79  usr/share/bluetooth-screen-lock/src/bluetooth_screen_lock/config.py
 e990eb8d026bb9e7495b92f6af8ccd89  usr/share/bluetooth-screen-lock/src/bluetooth_screen_lock/indicator.py
 0374b0dbc9fc772dff63b09ba799c2db  usr/share/bluetooth-screen-lock/src/bluetooth_screen_lock/monitor.py
-5fdbd3059c1ab7b662afacb8094ee3dc  usr/share/bluetooth-screen-lock/src/bluetooth_screen_lock/settings.py
-84db55aaf9766987c74a762c9bcf866c  usr/share/doc/bluetooth-screen-lock/changelog.Debian.gz
-5100a1844adf0e70310a37ee03f96398  usr/share/icons/hicolor/512x512/apps/bluetooth-screen-lock.png/bluetooth_screen_lock.png
+45a54a843e739d8872150528a2b8c662  usr/share/bluetooth-screen-lock/src/bluetooth_screen_lock/settings.py
+1b5408d30f78c3d577898c66aea1b304  usr/share/doc/bluetooth-screen-lock/changelog.Debian.gz
+8be1acace4aeb3edc566dd9a11c130ae  usr/share/icons/hicolor/128x128/apps/bluetooth-screen-lock.png/bluetooth-screen-lock.png
+58c4a5e3855503e5d8724c866093e8f6  usr/share/icons/hicolor/16x16/apps/bluetooth-screen-lock.png/bluetooth-screen-lock.png
+f66dc8ad95351686b6b69b7ce9156f72  usr/share/icons/hicolor/24x24/apps/bluetooth-screen-lock.png/bluetooth-screen-lock.png
+b7902d2f30a4a508d28040cc9c27f32b  usr/share/icons/hicolor/256x256/apps/bluetooth-screen-lock.png/bluetooth-screen-lock.png
+61ef7dc9a52192448126454c18902920  usr/share/icons/hicolor/32x32/apps/bluetooth-screen-lock.png/bluetooth-screen-lock.png
+bab408a630d3f9247311f2d2c561a232  usr/share/icons/hicolor/48x48/apps/bluetooth-screen-lock.png/bluetooth-screen-lock.png
+ec55eb71e1edce46677f6e03d39b4dbe  usr/share/icons/hicolor/512x512/apps/bluetooth-screen-lock.png/bluetooth-screen-lock.png
+c6c9b612c831f1499677cc5ea048bf06  usr/share/icons/hicolor/64x64/apps/bluetooth-screen-lock.png/bluetooth-screen-lock.png

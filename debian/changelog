@@ -1,3 +1,10 @@
+bluetooth-screen-lock (0.1.1-1) unstable; urgency=medium
+
+  [ Peter Nearing ]
+  * Bump version to 0.1.1.
+
+ -- Peter Nearing <me@peternearing.ca>  Thu, 14 Aug 2025 10:53:44 -0400
+
 bluetooth-screen-lock (0.1.0-1) unstable; urgency=medium
 
   * Initial release: GTK tray app to lock screen based on Bluetooth RSSI proximity.

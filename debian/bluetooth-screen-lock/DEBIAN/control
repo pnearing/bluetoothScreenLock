@@ -1,9 +1,9 @@
 Package: bluetooth-screen-lock
-Version: 0.1.0-1
+Version: 0.1.1-1
 Architecture: all
-Maintainer: Your Name <you@example.com>
-Installed-Size: 331
-Depends: python3, python3-gi, gir1.2-gtk-3.0, gir1.2-appindicator3-0.1 | gir1.2-ayatanaappindicator3-0.1, python3-bleak, bluez
+Maintainer: Peter Nearing <me@peternearing.ca>
+Installed-Size: 144
+Depends: python3, python3-gi, gir1.2-gtk-3.0, gir1.2-appindicator3-0.1 | gir1.2-ayatanaappindicator3-0.1, python3-bleak, bluez, python3-yaml
 Section: utils
 Priority: optional
 Description: Lock the screen based on Bluetooth proximity (GTK tray)

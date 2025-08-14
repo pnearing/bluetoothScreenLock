@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
+from gi.repository import Gtk, GLib
 
 from bleak import BleakScanner
 
@@ -36,6 +36,10 @@ class SettingsWindow(Gtk.Window):
         self._selected_mac: Optional[str] = initial.device_mac
         self._selected_name: Optional[str] = initial.device_name
         self._autostart: bool = initial.autostart
+
+        # RSSI monitor state
+        self._rssi_monitor_running: bool = False
+        self._rssi_monitor_thread = None
 
         grid = Gtk.Grid(column_spacing=10, row_spacing=10)
         self.add(grid)
@@ -66,6 +70,21 @@ class SettingsWindow(Gtk.Window):
         )
         grid.attach(btn_scan, 3, 0, 1, 1)
 
+        # Current RSSI display
+        lbl_rssi_cur_title = Gtk.Label(label="Current RSSI:")
+        lbl_rssi_cur_title.set_xalign(0)
+        lbl_rssi_cur_title.set_tooltip_text(
+            "Live RSSI for the selected device (in dBm)."
+        )
+        grid.attach(lbl_rssi_cur_title, 0, 1, 1, 1)
+
+        self.lbl_rssi_current = Gtk.Label(label="— dBm")
+        self.lbl_rssi_current.set_xalign(0)
+        self.lbl_rssi_current.set_tooltip_text(
+            "Live measured signal strength: closer = higher (e.g., -50), farther = lower (e.g., -90)."
+        )
+        grid.attach(self.lbl_rssi_current, 1, 1, 3, 1)
+
         # RSSI threshold
         lbl_rssi = Gtk.Label(label="RSSI threshold (dBm):")
         lbl_rssi.set_xalign(0)
@@ -74,7 +93,7 @@ class SettingsWindow(Gtk.Window):
             " closer = higher (e.g., -50), farther = lower (e.g., -90)."
             " Screen locks when RSSI stays below this threshold for the grace period."
         )
-        grid.attach(lbl_rssi, 0, 1, 2, 1)
+        grid.attach(lbl_rssi, 0, 2, 2, 1)
 
         adjustment_rssi = Gtk.Adjustment(value=initial.rssi_threshold, lower=-100, upper=-30, step_increment=1)
         self.spn_rssi = Gtk.SpinButton()
@@ -84,7 +103,7 @@ class SettingsWindow(Gtk.Window):
             "Typical range: -90 (far) to -50 (near)."
             " Choose a threshold like -75 dBm for conservative locking."
         )
-        grid.attach(self.spn_rssi, 2, 1, 2, 1)
+        grid.attach(self.spn_rssi, 2, 2, 2, 1)
 
         # Grace period
         lbl_grace = Gtk.Label(label="Grace period (sec):")
@@ -93,7 +112,7 @@ class SettingsWindow(Gtk.Window):
             "How long RSSI must stay below the threshold (or device unseen)"
             " before the screen locks. Helps avoid brief signal dips."
         )
-        grid.attach(lbl_grace, 0, 2, 2, 1)
+        grid.attach(lbl_grace, 0, 3, 2, 1)
 
         adjustment_grace = Gtk.Adjustment(value=initial.grace_period_sec, lower=1, upper=60, step_increment=1)
         self.spn_grace = Gtk.SpinButton()
@@ -102,7 +121,7 @@ class SettingsWindow(Gtk.Window):
         self.spn_grace.set_tooltip_text(
             "Seconds to tolerate weak/no signal before locking (e.g., 8 seconds)."
         )
-        grid.attach(self.spn_grace, 2, 2, 2, 1)
+        grid.attach(self.spn_grace, 2, 3, 2, 1)
 
         # Autostart at login
         self.chk_autostart = Gtk.CheckButton.new_with_label("Start at login")
@@ -110,7 +129,7 @@ class SettingsWindow(Gtk.Window):
             "Enable to launch Bluetooth Screen Lock automatically when you sign in."
         )
         self.chk_autostart.set_active(initial.autostart)
-        grid.attach(self.chk_autostart, 0, 3, 4, 1)
+        grid.attach(self.chk_autostart, 0, 4, 4, 1)
 
         # Autostart delay
         lbl_delay = Gtk.Label(label="Start delay (sec):")
@@ -118,7 +137,7 @@ class SettingsWindow(Gtk.Window):
         lbl_delay.set_tooltip_text(
             "Delay after login before starting the app."
         )
-        grid.attach(lbl_delay, 0, 4, 2, 1)
+        grid.attach(lbl_delay, 0, 5, 2, 1)
 
         adjustment_delay = Gtk.Adjustment(value=max(0, int(getattr(initial, 'start_delay_sec', 0))), lower=0, upper=600, step_increment=1)
         self.spn_delay = Gtk.SpinButton()
@@ -126,7 +145,7 @@ class SettingsWindow(Gtk.Window):
         self.spn_delay.set_digits(0)
         self.spn_delay.set_tooltip_text("0 for no delay. Typical values: 5–30 seconds.")
         self.spn_delay.set_sensitive(self.chk_autostart.get_active())
-        grid.attach(self.spn_delay, 2, 4, 2, 1)
+        grid.attach(self.spn_delay, 2, 5, 2, 1)
 
         def _toggle_delay(_btn: Gtk.CheckButton) -> None:
             self.spn_delay.set_sensitive(_btn.get_active())
@@ -135,7 +154,7 @@ class SettingsWindow(Gtk.Window):
         # Buttons
         btn_box = Gtk.Box(spacing=10)
         btn_box.set_halign(Gtk.Align.END)
-        grid.attach(btn_box, 0, 5, 4, 1)
+        grid.attach(btn_box, 0, 6, 4, 1)
 
         btn_cancel = Gtk.Button(label="Cancel")
         btn_cancel.connect("clicked", lambda _b: self.close())
@@ -148,6 +167,13 @@ class SettingsWindow(Gtk.Window):
 
         self._populate_initial(initial)
 
+        # start RSSI monitor if we already have a selected device
+        if self._selected_mac:
+            self._start_rssi_monitor(self._selected_mac)
+
+        # ensure monitor stops when window closes
+        self.connect("destroy", lambda *_: self._stop_rssi_monitor())
+
     def _populate_initial(self, initial: SettingsResult) -> None:
         # If we already have a selected device, add it
         if initial.device_mac:
@@ -159,11 +185,20 @@ class SettingsWindow(Gtk.Window):
     def _on_device_changed(self, _cmb: Gtk.ComboBoxText) -> None:
         idx = self.cmb_devices.get_active()
         if idx < 0 or idx >= len(self._device_list):
+            # If invalid selection, stop monitor and clear label
+            self._selected_mac = None
+            self._selected_name = None
+            self._stop_rssi_monitor()
+            self._set_rssi_label(None)
             return
         name, mac = self._device_list[idx]
         self._selected_mac = mac
         self._selected_name = name
         logger.debug("Device selection changed: %s (%s)", name, mac)
+        # restart RSSI monitor for new device
+        self._stop_rssi_monitor()
+        if mac:
+            self._start_rssi_monitor(mac)
 
     def _on_save(self, _btn: Gtk.Button) -> None:
         logger.info("Settings save requested")
@@ -181,6 +216,8 @@ class SettingsWindow(Gtk.Window):
 
     def _on_scan(self, _btn: Gtk.Button) -> None:
         self.set_sensitive(False)
+        # pause RSSI monitor during scan to avoid adapter contention
+        self._stop_rssi_monitor()
 
         async def do_scan() -> None:
             try:
@@ -200,11 +237,15 @@ class SettingsWindow(Gtk.Window):
             except Exception:
                 logger.exception("Device scan failed")
             finally:
-                GLib.idle_add(lambda: self.set_sensitive(True))
+                def _after():
+                    self.set_sensitive(True)
+                    # restart RSSI monitor for current selection
+                    if self._selected_mac:
+                        self._start_rssi_monitor(self._selected_mac)
+                GLib.idle_add(_after)
 
         # run scan in background thread with its own loop to avoid blocking GTK loop
         import threading
-        from gi.repository import GLib  # local import for thread safety
 
         def run_asyncio() -> None:
             loop = asyncio.new_event_loop()
@@ -213,3 +254,73 @@ class SettingsWindow(Gtk.Window):
             loop.close()
 
         threading.Thread(target=run_asyncio, daemon=True).start()
+
+    # --- RSSI live monitor helpers ---
+    def _set_rssi_label(self, rssi: Optional[int]) -> None:
+        try:
+            if rssi is None:
+                self.lbl_rssi_current.set_text("— dBm")
+            else:
+                self.lbl_rssi_current.set_text(f"{int(rssi)} dBm")
+        except Exception:
+            logger.exception("Failed to update RSSI label")
+
+    def _start_rssi_monitor(self, mac: str) -> None:
+        if self._rssi_monitor_running:
+            return
+        if not mac:
+            return
+
+        self._rssi_monitor_running = True
+
+        import threading
+
+        def _thread() -> None:
+            async def _run() -> None:
+                try:
+                    scanner = BleakScanner()
+
+                    last_update = 0.0
+
+                    def on_detect(device, advertisement_data):
+                        try:
+                            if (device.address or "").upper() != mac.upper():
+                                return
+                            rssi_val = getattr(advertisement_data, "rssi", None)
+                            if rssi_val is None:
+                                rssi_val = getattr(device, "rssi", None)
+                            if rssi_val is not None:
+                                # rate-limit label updates to ~2 Hz
+                                nonlocal last_update
+                                now = asyncio.get_event_loop().time()
+                                if now - last_update >= 0.5:
+                                    last_update = now
+                                    GLib.idle_add(lambda: self._set_rssi_label(int(rssi_val)))
+                        except Exception:
+                            logger.exception("RSSI detect callback error")
+
+                    scanner.register_detection_callback(on_detect)
+                    await scanner.start()
+                    try:
+                        while self._rssi_monitor_running:
+                            await asyncio.sleep(1.0)
+                    finally:
+                        await scanner.stop()
+                except Exception:
+                    logger.exception("RSSI monitor failed")
+                finally:
+                    GLib.idle_add(lambda: self._set_rssi_label(None))
+
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(_run())
+            loop.close()
+
+        self._rssi_monitor_thread = threading.Thread(target=_thread, daemon=True)
+        self._rssi_monitor_thread.start()
+
+    def _stop_rssi_monitor(self) -> None:
+        if not self._rssi_monitor_running:
+            return
+        self._rssi_monitor_running = False
+        # thread will exit on next loop iteration; no join to avoid blocking UI
