@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Bluetooth Screen Lock
-Comment=Lock/unlock the screen based on Bluetooth proximity
-Exec=/usr/bin/bluetooth-screen-lock
-Icon=bluetooth-screen-lock
-Terminal=false
-Categories=Utility;GTK;
-X-GNOME-UsesNotifications=true

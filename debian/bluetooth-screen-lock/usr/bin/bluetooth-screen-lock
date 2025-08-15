@@ -1,6 +1,0 @@
-#!/usr/bin/env sh
-# Launcher for Bluetooth Screen Lock
-# Ensures the packaged source directory is on PYTHONPATH and runs the app
-APP_DIR="/usr/share/bluetooth-screen-lock"
-export PYTHONPATH="$APP_DIR:$PYTHONPATH"
-exec python3 "$APP_DIR/run.py" "$@"
