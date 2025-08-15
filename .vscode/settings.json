@@ -1,5 +1,5 @@
 {
   "files.associations": {
-    "debian/install": "plaintext"
+    "**debian/install": "plaintext"
   }
 }

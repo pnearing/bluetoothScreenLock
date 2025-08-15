@@ -1,3 +1,11 @@
+bluetooth-screen-lock (0.1.2-2) unstable; urgency=medium
+
+  [ Peter Nearing ]
+  * Update app icon and add 1024x1024 hicolor asset. Regenerate all
+    sizes to comply with icon theme guidelines.
+
+ -- Peter Nearing <me@peternearing.ca>  Fri, 15 Aug 2025 18:51:37 -0400
+
 bluetooth-screen-lock (0.1.2-1) unstable; urgency=medium
 
   [ Peter Nearing ]
