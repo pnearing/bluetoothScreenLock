@@ -1,8 +1,8 @@
 Package: bluetooth-screen-lock
-Version: 0.1.1-1
+Version: 0.1.2-1
 Architecture: all
 Maintainer: Peter Nearing <me@peternearing.ca>
-Installed-Size: 144
+Installed-Size: 136
 Depends: python3, python3-gi, gir1.2-gtk-3.0, gir1.2-appindicator3-0.1 | gir1.2-ayatanaappindicator3-0.1, python3-bleak, bluez, python3-yaml
 Section: utils
 Priority: optional
