@@ -178,6 +178,8 @@ class SettingsWindow(Gtk.Window):
         # If we already have a selected device, add it
         if initial.device_mac:
             name = initial.device_name or initial.device_mac
+            # Ensure internal list is in sync so 'changed' handler sees a valid index
+            self._device_list = [(name, initial.device_mac)]
             self.cmb_devices.append_text(f"{name} ({initial.device_mac})")
             self.cmb_devices.set_active(0)
         logger.debug("Initial device populated: %s", initial.device_mac)
