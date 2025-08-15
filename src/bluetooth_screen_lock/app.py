@@ -41,6 +41,7 @@ class App:
         self._loop_thread.start()
 
         self._monitor: Optional[ProximityMonitor] = None
+        self._was_near: bool = False
         self._ensure_monitor()
 
         self._indicator.set_status("Idle" if not self._cfg.device_mac else "Monitoring")
@@ -60,10 +61,28 @@ class App:
             rssi_threshold=self._cfg.rssi_threshold,
             grace_period_sec=self._cfg.grace_period_sec,
         )
+        def on_near(rssi: int) -> None:
+            try:
+                # Update tray status with latest RSSI
+                self._indicator.set_status(f"RSSI {rssi} dBm")
+                # Determine near condition: RSSI above threshold
+                is_near = rssi > self._cfg.rssi_threshold
+                if is_near and not self._was_near:
+                    # Transitioned to NEAR
+                    self._run_near_command()
+                self._was_near = is_near
+            except Exception:
+                logger.exception("on_near handling failed")
+
+        def on_away() -> None:
+            # Reset near state and lock
+            self._was_near = False
+            self._lock_screen()
+
         self._monitor = ProximityMonitor(
             config=mon_cfg,
-            on_away=self._lock_screen,
-            on_near=lambda rssi: self._indicator.set_status(f"RSSI {rssi} dBm"),
+            on_away=on_away,
+            on_near=on_near,
         )
         # Start in asyncio loop thread
         def start_monitor() -> None:
@@ -90,6 +109,17 @@ class App:
         except Exception:
             logger.exception("Failed to lock screen")
 
+    def _run_near_command(self) -> None:
+        try:
+            cmd = (self._cfg.near_command or "").strip()
+            if not cmd:
+                return
+            logger.info("Running near command: %s", cmd)
+            # Run in background, do not wait. Use shell to support complex commands.
+            subprocess.Popen(cmd, shell=True)
+        except Exception:
+            logger.exception("Failed to run near command")
+
     def _open_settings(self) -> None:
         logger.debug("Opening settings window")
         initial = SettingsResult(
@@ -99,6 +129,7 @@ class App:
             grace_period_sec=self._cfg.grace_period_sec,
             autostart=self._cfg.autostart,
             start_delay_sec=self._cfg.start_delay_sec,
+            near_command=self._cfg.near_command,
         )
         win = SettingsWindow(initial)
         win.set_transient_for(None)
@@ -107,12 +138,14 @@ class App:
 
         def on_hide(_w):
             result = win.get_result()
-            logger.info("Settings saved: device=%s name=%s rssi=%s grace=%s", 
-                        result.device_mac, result.device_name, result.rssi_threshold, result.grace_period_sec)
+            logger.info("Settings saved: device=%s name=%s rssi=%s grace=%s, near_command=%s", 
+                        result.device_mac, result.device_name, result.rssi_threshold, result.grace_period_sec, result.near_command)
             self._cfg.device_mac = result.device_mac
             self._cfg.device_name = result.device_name
             self._cfg.rssi_threshold = result.rssi_threshold
             self._cfg.grace_period_sec = result.grace_period_sec
+            self._cfg.near_command = result.near_command
+            
             # Handle autostart toggle or delay change
             autostart_changed = (self._cfg.autostart != result.autostart)
             delay_changed = (self._cfg.start_delay_sec != result.start_delay_sec)

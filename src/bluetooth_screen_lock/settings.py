@@ -22,6 +22,7 @@ class SettingsResult:
     grace_period_sec: int
     autostart: bool
     start_delay_sec: int
+    near_command: Optional[str] = None
 
 
 class SettingsWindow(Gtk.Window):
@@ -151,10 +152,24 @@ class SettingsWindow(Gtk.Window):
             self.spn_delay.set_sensitive(_btn.get_active())
         self.chk_autostart.connect("toggled", _toggle_delay)
 
+        # Near command
+        lbl_near_cmd = Gtk.Label(label="Command when device is near:")
+        lbl_near_cmd.set_xalign(0)
+        lbl_near_cmd.set_tooltip_text(
+            "Optional shell command to run once when the device becomes NEAR (RSSI above threshold).\n"
+            "Examples: 'gnome-screensaver-command -d' or a custom script path."
+        )
+        grid.attach(lbl_near_cmd, 0, 6, 2, 1)
+
+        self.txt_near_cmd = Gtk.Entry()
+        self.txt_near_cmd.set_placeholder_text("e.g., gnome-screensaver-command -d")
+        self.txt_near_cmd.set_hexpand(True)
+        grid.attach(self.txt_near_cmd, 2, 6, 2, 1)
+
         # Buttons
         btn_box = Gtk.Box(spacing=10)
         btn_box.set_halign(Gtk.Align.END)
-        grid.attach(btn_box, 0, 6, 4, 1)
+        grid.attach(btn_box, 0, 7, 4, 1)
 
         btn_cancel = Gtk.Button(label="Cancel")
         btn_cancel.connect("clicked", lambda _b: self.close())
@@ -183,6 +198,11 @@ class SettingsWindow(Gtk.Window):
             self.cmb_devices.append_text(f"{name} ({initial.device_mac})")
             self.cmb_devices.set_active(0)
         logger.debug("Initial device populated: %s", initial.device_mac)
+        # Set initial near command
+        try:
+            self.txt_near_cmd.set_text(getattr(initial, 'near_command', None) or "")
+        except Exception:
+            logger.exception("Failed to set initial near command")
 
     def _on_device_changed(self, _cmb: Gtk.ComboBoxText) -> None:
         idx = self.cmb_devices.get_active()
@@ -214,6 +234,7 @@ class SettingsWindow(Gtk.Window):
             grace_period_sec=int(self.spn_grace.get_value()),
             autostart=bool(self.chk_autostart.get_active()),
             start_delay_sec=int(self.spn_delay.get_value()),
+            near_command=(self.txt_near_cmd.get_text() or None),
         )
 
     def _on_scan(self, _btn: Gtk.Button) -> None:

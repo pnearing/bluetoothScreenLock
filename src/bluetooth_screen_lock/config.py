@@ -19,6 +19,7 @@ class Config:
     grace_period_sec: int = 8  # seconds below threshold before locking
     autostart: bool = False
     start_delay_sec: int = 0  # delay app start on login
+    near_command: Optional[str] = None  # shell command to run when device comes near
 
 
 DEFAULT_CONFIG = Config()
