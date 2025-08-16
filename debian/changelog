@@ -1,3 +1,10 @@
+bluetooth-screen-lock (0.1.5-1) unstable; urgency=medium
+
+  [ Peter Nearing ]
+  * Bump version to 0.1.5-1 and rebuild package.
+
+ -- Peter Nearing <me@peternearing.ca>  Sat, 16 Aug 2025 10:00:05 -0400
+
 bluetooth-screen-lock (0.1.4-1) unstable; urgency=medium
 
   [ Peter Nearing ]
