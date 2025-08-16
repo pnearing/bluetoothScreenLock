@@ -1,3 +1,13 @@
+bluetooth-screen-lock (0.1.10-1) unstable; urgency=medium
+
+  [ Peter Nearing ]
+  * Add --debug CLI flag to force DEBUG logging (overrides LOG_LEVEL).
+  * Harden file operations for autostart/config via dirfd-anchored, atomic writes.
+  * Safer near_command execution: no PATH lookup, require absolute non-symlink executables.
+  * Prefer session-scoped DBus screen lock methods; add scoped loginctl fallback.
+
+ -- Peter Nearing <me@peternearing.ca>  Sat, 16 Aug 2025 15:54:47 -0400
+
 bluetooth-screen-lock (0.1.9-1) unstable; urgency=medium
 
   [ Peter Nearing ]
