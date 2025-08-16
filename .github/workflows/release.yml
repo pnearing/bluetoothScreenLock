@@ -28,16 +28,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install build
           sudo apt-get update
-          sudo apt-get install -y debhelper devscripts build-essential
+          sudo apt-get install -y debhelper devscripts build-essential dpkg-dev
 
       - name: Build Python packages (sdist/wheel)
         run: |
           python -m build
         # outputs in dist/
 
-      - name: Build Debian package (unsigned)
+      - name: Prepare Debian orig tarball
         run: |
-          debuild -us -uc
+          UPSTREAM_VER=$(dpkg-parsechangelog -S Version | sed 's/-.*//')
+          PKG=$(dpkg-parsechangelog -S Source)
+          echo "Package: $PKG, Upstream version: $UPSTREAM_VER"
+          git archive --format=tar.gz --prefix=${PKG}-${UPSTREAM_VER}/ -o ../${PKG}_${UPSTREAM_VER}.orig.tar.gz HEAD
+
+      - name: Build Debian package (unsigned, binary)
+        run: |
+          debuild -us -uc -b
         # debuild places artifacts one directory up (..)
 
       - name: Collect artifacts
