@@ -207,9 +207,19 @@ class App:
             cmd = (self._cfg.near_command or "").strip()
             if not cmd:
                 return
-            logger.info("Running near command: %s", cmd)
-            # Run in background, do not wait. Default: no shell. Opt-in via cfg.near_shell=True.
+            # Log hygiene: do not log full command with arguments to avoid leaking secrets.
+            # If running via shell, just indicate shell; otherwise log only argv[0].
             use_shell = bool(getattr(self._cfg, "near_shell", False))
+            try:
+                if use_shell:
+                    display = "sh -c"
+                else:
+                    _argv = shlex.split(cmd)
+                    display = _argv[0] if _argv else "<empty>"
+            except Exception:
+                display = "<unparsed>"
+            logger.info("Running near command: %s", display)
+            # Run in background, do not wait. Default: no shell. Opt-in via cfg.near_shell=True.
             if use_shell:
                 subprocess.Popen(cmd, shell=True)
             else:
@@ -243,8 +253,24 @@ class App:
 
         def on_hide(_w):
             result = win.get_result()
-            logger.info("Settings saved: device=%s name=%s rssi=%s grace=%s, near_command=%s, near_shell=%s", 
-                        result.device_mac, result.device_name, result.rssi_threshold, result.grace_period_sec, result.near_command, getattr(result, 'near_shell', False))
+            # Log hygiene: avoid logging full near_command; only show program/shell indicator
+            try:
+                if bool(getattr(result, 'near_shell', False)):
+                    near_display = "sh -c"
+                else:
+                    _argv = shlex.split(getattr(result, 'near_command', '') or '')
+                    near_display = _argv[0] if _argv else "<empty>"
+            except Exception:
+                near_display = "<unparsed>"
+            logger.info(
+                "Settings saved: device=%s name=%s rssi=%s grace=%s, near_command_prog=%s, near_shell=%s",
+                result.device_mac,
+                result.device_name,
+                result.rssi_threshold,
+                result.grace_period_sec,
+                near_display,
+                bool(getattr(result, 'near_shell', False)),
+            )
             self._cfg.device_mac = result.device_mac
             self._cfg.device_name = result.device_name
             self._cfg.rssi_threshold = result.rssi_threshold
