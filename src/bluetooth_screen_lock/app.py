@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import os
 import shutil
 import subprocess
@@ -277,9 +278,19 @@ class App:
         delay = max(0, int(getattr(self._cfg, "start_delay_sec", 0)))
         if delay <= 0:
             return cmd
-        # Use POSIX sh to avoid dependency on bash
-        # Quote the command safely
-        return f"/bin/sh -c 'sleep {delay}; exec {cmd}'"
+        # Use POSIX sh. To avoid fragile quoting, pass the full command as a separate
+        # base64-encoded argument and decode it at runtime, then exec via sh -c.
+        try:
+            encoded = base64.b64encode(cmd.encode("utf-8")).decode("ascii")
+        except Exception:
+            # Fallback to no-delay if encoding somehow fails (very unlikely)
+            return cmd
+        # The single-quoted script does not interpolate 'encoded'; it is passed as $1.
+        # We decode with base64 -d and exec it using a fresh 'sh -c'.
+        return (
+            f"/bin/sh -c 'sleep {delay}; CMD=$(printf %s \"$1\" | base64 -d); exec sh -c \"$CMD\"'"
+            f" dummy {encoded}"
+        )
 
     def run(self) -> None:
         logger.info("GTK main loop starting")
