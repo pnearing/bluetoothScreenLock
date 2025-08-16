@@ -93,6 +93,17 @@ def _setup_logging(
             fh.setLevel(level if isinstance(level, int) else logging._nameToLevel.get(str(level).upper(), logging.INFO))
             fh.setFormatter(fmt)
             root.addHandler(fh)
+            # Best-effort hardening: ensure the log file itself is not world-readable.
+            # Rationale: When $XDG_STATE_HOME does not exist, we fall back to a log file
+            # directly under the user's home directory (e.g., ~/bluetooth-screen-lock.log).
+            # Logging's RotatingFileHandler honors the process umask, which commonly results
+            # in 0644. Logs may include device identifiers or timing information, so we
+            # explicitly chmod the file to 0600 after the handler creates/opens it.
+            try:
+                os.chmod(path, 0o600)
+            except Exception:
+                # Do not fail if we cannot change the mode; continue with best-effort security.
+                logging.getLogger(__name__).debug("Could not chmod log file to 0600", exc_info=True)
         except Exception:
             # Do not fail startup if file handler cannot be created
             logging.getLogger(__name__).warning("File logging requested but could not be initialized", exc_info=True)
