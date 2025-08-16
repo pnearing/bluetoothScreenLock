@@ -111,6 +111,12 @@ class App:
         self._armed: bool = False
         # Timestamp of the last time the session was unlocked (used for re-lock delay cooldown)
         self._last_unlock_ts: float = 0.0
+        # Timestamp when we first observed NEAR (used for dwell before running near_command)
+        self._near_since_ts: Optional[float] = None
+        # Timestamp of the last time we initiated a lock (to measure cycle completion)
+        self._last_lock_ts: float = 0.0
+        # Timestamp when the last lock+unlock cycle completed (for global rate-limit)
+        self._last_cycle_completed_ts: float = 0.0
         self._ensure_monitor()
 
         # Listen for unlock signals from the session to implement re-lock delay
@@ -158,11 +164,19 @@ class App:
                 # Determine near condition: RSSI above threshold
                 is_near = rssi > self._cfg.rssi_threshold
                 if is_near and not self._was_near:
-                    # Transitioned to NEAR
-                    if self._armed:
+                    # Transitioned to NEAR; start dwell timer
+                    self._near_since_ts = time.time()
+                if is_near and self._armed:
+                    dwell = max(0, int(getattr(self._cfg, 'near_dwell_sec', 0)))
+                    if dwell <= 0:
+                        # No dwell required; fire immediately on NEAR
                         self._run_near_command()
-                        # Disarm until we've observed an AWAY again
-                        self._armed = False
+                        self._armed = False  # Disarm until next AWAY
+                    else:
+                        # Require sustained NEAR for the dwell duration
+                        if self._near_since_ts is not None and (time.time() - self._near_since_ts) >= dwell:
+                            self._run_near_command()
+                            self._armed = False
                 self._was_near = is_near
             except Exception:
                 logger.exception("on_near handling failed")
@@ -170,10 +184,19 @@ class App:
         def on_away() -> None:
             # Reset near state and lock
             self._was_near = False
+            self._near_since_ts = None
             # Arm the near action so that the next NEAR transition can execute the command
             self._armed = True
             # Only auto-lock if locking is enabled
             if getattr(self._cfg, "locking_enabled", True):
+                # Global cycle rate limit: allow at most one lock+unlock cycle per window
+                window_min = max(0, int(getattr(self._cfg, 'cycle_rate_limit_min', 0)))
+                if window_min > 0 and self._last_cycle_completed_ts:
+                    if (time.time() - self._last_cycle_completed_ts) < (window_min * 60):
+                        remaining = int((window_min * 60) - (time.time() - self._last_cycle_completed_ts))
+                        logger.info("Cycle rate-limit active: skipping auto-lock (next allowed in %ss)", remaining)
+                        self._indicator.set_status(f"Away (rate-limited {remaining}s)")
+                        return
                 # Enforce re-lock delay after an actual UNLOCK event
                 cooldown = max(0, int(getattr(self._cfg, "re_lock_delay_sec", 0)))
                 if cooldown > 0 and self._last_unlock_ts:
@@ -184,6 +207,7 @@ class App:
                         self._indicator.set_status(f"Away (cooldown {remaining}s)")
                         return
                 self._lock_screen()
+                self._last_lock_ts = time.time()
             else:
                 self._indicator.set_status("Away (lock off)")
 
@@ -507,6 +531,8 @@ class App:
             scan_interval_sec=max(1.0, float(getattr(self._cfg, 'scan_interval_sec', 2.0))),
             near_consecutive_scans=int(getattr(self._cfg, 'near_consecutive_scans', 2)),
             file_logging_enabled=bool(getattr(self._cfg, 'file_logging_enabled', False)),
+            near_dwell_sec=int(getattr(self._cfg, 'near_dwell_sec', 0)),
+            cycle_rate_limit_min=int(getattr(self._cfg, 'cycle_rate_limit_min', 0)),
         )
         win = SettingsWindow(initial)
         win.set_transient_for(None)
@@ -566,6 +592,8 @@ class App:
             self._cfg.scan_interval_sec = max(1.0, float(getattr(result, 'scan_interval_sec', getattr(self._cfg, 'scan_interval_sec', 2.0))))
             self._cfg.near_consecutive_scans = int(getattr(result, 'near_consecutive_scans', getattr(self._cfg, 'near_consecutive_scans', 2)))
             self._cfg.file_logging_enabled = bool(getattr(result, 'file_logging_enabled', getattr(self._cfg, 'file_logging_enabled', False)))
+            self._cfg.near_dwell_sec = int(getattr(result, 'near_dwell_sec', getattr(self._cfg, 'near_dwell_sec', 0)))
+            self._cfg.cycle_rate_limit_min = int(getattr(result, 'cycle_rate_limit_min', getattr(self._cfg, 'cycle_rate_limit_min', 0)))
             
             # Handle autostart toggle or delay change
             autostart_changed = (self._cfg.autostart != result.autostart)
@@ -829,6 +857,9 @@ class App:
                         # Unlocked
                         self._last_unlock_ts = time.time()
                         logger.info("Unlock detected via ScreenSaver ActiveChanged")
+                        # Consider cycle complete when we observe an unlock following a prior lock
+                        if self._last_lock_ts:
+                            self._last_cycle_completed_ts = self._last_unlock_ts
             except Exception:
                 logger.exception("Failed handling ScreenSaver signal")
 
@@ -903,6 +934,8 @@ class App:
                             if locked is False:
                                 self._last_unlock_ts = time.time()
                                 logger.info("Unlock detected via login1 LockedHint=false")
+                                if self._last_lock_ts:
+                                    self._last_cycle_completed_ts = self._last_unlock_ts
                 except Exception:
                     logger.exception("Failed handling login1 PropertiesChanged")
 

@@ -69,6 +69,12 @@ class Config:
         Suppress auto-lock for this many seconds after an unlock/NEAR.
     near_consecutive_scans : int
         Require N consecutive above-near readings before NEAR triggers.
+    near_dwell_sec : int
+        Minimum seconds the device must remain NEAR before running near_command.
+        0 disables dwell (immediate on NEAR transition).
+    cycle_rate_limit_min : int
+        Global rate limit window in minutes. At most one lock+unlock cycle
+        is allowed per window. 0 disables the rate limit.
     """
     device_mac: Optional[str] = None  # e.g., "AA:BB:CC:DD:EE:FF"
     device_name: Optional[str] = None
@@ -85,6 +91,10 @@ class Config:
     locking_enabled: bool = True  # globally enable/disable automatic screen locking
     re_lock_delay_sec: int = 0  # suppress auto-locks for N seconds after an unlock/NEAR
     near_consecutive_scans: int = 2  # require N consecutive above-near readings before NEAR
+    # Require the device to remain NEAR for this many seconds before running near_command
+    near_dwell_sec: int = 0
+    # Global rate-limit: allow at most one lock+unlock cycle per M minutes (0 = disabled)
+    cycle_rate_limit_min: int = 0
     # --- File logging options ---
     # Master toggle to enable writing logs to a rotating file in addition to stdout/stderr
     file_logging_enabled: bool = False
@@ -169,6 +179,15 @@ def load_config() -> Config:
             cfg.grace_period_sec = max(0, min(600, int(getattr(cfg, 'grace_period_sec', 15))))
         except Exception:
             cfg.grace_period_sec = 15
+        # Clamp new options to sane ranges
+        try:
+            cfg.near_dwell_sec = max(0, min(600, int(getattr(cfg, 'near_dwell_sec', 0))))
+        except Exception:
+            cfg.near_dwell_sec = 0
+        try:
+            cfg.cycle_rate_limit_min = max(0, min(240, int(getattr(cfg, 'cycle_rate_limit_min', 0))))
+        except Exception:
+            cfg.cycle_rate_limit_min = 0
         logger.debug("Config loaded from %s", CONFIG_PATH)
         return cfg
     except Exception:

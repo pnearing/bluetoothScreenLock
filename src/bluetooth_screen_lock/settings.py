@@ -39,6 +39,10 @@ class SettingsResult:
     scan_interval_sec: float = 2.0
     near_consecutive_scans: int = 2
     file_logging_enabled: bool = False
+    # New: require NEAR dwell before running near_command
+    near_dwell_sec: int = 0
+    # New: global rate limit for lock+unlock cycles
+    cycle_rate_limit_min: int = 0
 
 
 class SettingsWindow(Gtk.Window):
@@ -246,6 +250,36 @@ class SettingsWindow(Gtk.Window):
         self.spn_scan.set_tooltip_text("Typical: 1.0–3.0s. Use smaller for faster detection, larger for efficiency.")
         grid.attach(self.spn_scan, 2, 13, 2, 1)
 
+        # Near dwell (seconds)
+        lbl_near_dwell = Gtk.Label(label="Near dwell (sec):")
+        lbl_near_dwell.set_xalign(0)
+        lbl_near_dwell.set_tooltip_text(
+            "Minimum seconds the device must remain NEAR before the near command runs. 0 = immediate."
+        )
+        grid.attach(lbl_near_dwell, 0, 14, 2, 1)
+
+        adjustment_near_dwell = Gtk.Adjustment(value=max(0, int(getattr(initial, 'near_dwell_sec', 0))), lower=0, upper=600, step_increment=1)
+        self.spn_near_dwell = Gtk.SpinButton()
+        self.spn_near_dwell.set_adjustment(adjustment_near_dwell)
+        self.spn_near_dwell.set_digits(0)
+        self.spn_near_dwell.set_tooltip_text("Seconds to stay NEAR before running near_command. 0 disables dwell.")
+        grid.attach(self.spn_near_dwell, 2, 14, 2, 1)
+
+        # Cycle rate limit (minutes)
+        lbl_cycle_rl = Gtk.Label(label="Cycle rate limit (min):")
+        lbl_cycle_rl.set_xalign(0)
+        lbl_cycle_rl.set_tooltip_text(
+            "Global rate limit: allow at most one lock+unlock cycle per this many minutes. 0 = unlimited."
+        )
+        grid.attach(lbl_cycle_rl, 0, 15, 2, 1)
+
+        adjustment_cycle_rl = Gtk.Adjustment(value=max(0, int(getattr(initial, 'cycle_rate_limit_min', 0))), lower=0, upper=240, step_increment=1)
+        self.spn_cycle_rl = Gtk.SpinButton()
+        self.spn_cycle_rl.set_adjustment(adjustment_cycle_rl)
+        self.spn_cycle_rl.set_digits(0)
+        self.spn_cycle_rl.set_tooltip_text("0 disables; typical values: 1–10 minutes.")
+        grid.attach(self.spn_cycle_rl, 2, 15, 2, 1)
+
         # Near debounce (consecutive scans)
         lbl_near_debounce = Gtk.Label(label="Near debounce (scans):")
         lbl_near_debounce.set_xalign(0)
@@ -294,7 +328,7 @@ class SettingsWindow(Gtk.Window):
             "Enable writing logs to a rotating file in addition to stdout/stderr."
         )
         self.chk_file_logging.set_active(bool(getattr(initial, 'file_logging_enabled', False)))
-        grid.attach(self.chk_file_logging, 0, 15, 2, 1)
+        grid.attach(self.chk_file_logging, 0, 16, 2, 1)
 
         # Path hint label
         self.lbl_log_path = Gtk.Label()
@@ -306,11 +340,11 @@ class SettingsWindow(Gtk.Window):
         except Exception:
             logger.exception("Failed to compute default log path")
             self.lbl_log_path.set_text("Log file: <unknown>")
-        grid.attach(self.lbl_log_path, 2, 15, 2, 1)
+        grid.attach(self.lbl_log_path, 2, 16, 2, 1)
 
         btn_box = Gtk.Box(spacing=10)
         btn_box.set_halign(Gtk.Align.END)
-        grid.attach(btn_box, 0, 16, 4, 1)
+        grid.attach(btn_box, 0, 17, 4, 1)
 
         btn_cancel = Gtk.Button(label="Cancel")
         btn_cancel.connect("clicked", lambda _b: self.close())
@@ -404,6 +438,8 @@ class SettingsWindow(Gtk.Window):
             scan_interval_sec=max(1.0, float(self.spn_scan.get_value())),
             near_consecutive_scans=max(1, int(self.spn_near_debounce.get_value())),
             file_logging_enabled=bool(self.chk_file_logging.get_active()),
+            near_dwell_sec=max(0, int(self.spn_near_dwell.get_value())),
+            cycle_rate_limit_min=max(0, int(self.spn_cycle_rl.get_value())),
         )
 
     def _on_scan(self, _btn: Gtk.Button) -> None:
