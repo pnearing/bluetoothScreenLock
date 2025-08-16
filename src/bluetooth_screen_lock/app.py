@@ -29,6 +29,7 @@ class App:
             app_id="bluetooth-screen-lock",
             on_open_settings=self._open_settings,
             on_quit=self.quit,
+            on_lock_now=self._lock_screen,
         )
 
         # Ensure autostart entry reflects current config on startup

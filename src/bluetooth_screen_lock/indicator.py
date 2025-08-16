@@ -32,13 +32,18 @@ class TrayIndicator:
         app_id: str,
         on_open_settings: Callable[[], None],
         on_quit: Callable[[], None],
+        on_lock_now: Optional[Callable[[], None]] = None,
     ) -> None:
         self._app_id = app_id
         self._on_open_settings = on_open_settings
         self._on_quit = on_quit
+        self._on_lock_now = on_lock_now
 
         self._status_label = Gtk.MenuItem(label="Status: Idle")
         self._status_label.set_sensitive(False)
+
+        self._lock_item = Gtk.MenuItem(label="Lock now")
+        self._lock_item.connect("activate", self._on_lock_now_activate)
 
         self._settings_item = Gtk.MenuItem(label="Settings…")
         self._settings_item.connect("activate", self._on_settings)
@@ -49,6 +54,7 @@ class TrayIndicator:
         menu = Gtk.Menu()
         menu.append(self._status_label)
         menu.append(Gtk.SeparatorMenuItem())
+        menu.append(self._lock_item)
         menu.append(self._settings_item)
         menu.append(self._quit_item)
         menu.show_all()
@@ -75,3 +81,14 @@ class TrayIndicator:
             self._status_label.set_label(f"Status: {text}")
         GLib.idle_add(update)
         logger.debug("Status updated: %s", text)
+
+    def _on_lock_now_activate(self, _item: Gtk.MenuItem) -> None:
+        logger.info("Lock now menu clicked")
+        try:
+            if self._on_lock_now is not None:
+                # Trigger app-provided lock
+                self._on_lock_now()
+            # Reflect manual action in status regardless of backend outcome
+            self.set_status("Locked (manual)")
+        except Exception:
+            logger.exception("Lock now action failed")
