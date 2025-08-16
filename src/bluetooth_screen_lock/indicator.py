@@ -1,5 +1,3 @@
-import threading
-import subprocess
 import logging
 from typing import Callable, Optional
 
