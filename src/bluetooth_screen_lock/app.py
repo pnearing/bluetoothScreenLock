@@ -32,6 +32,15 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gio
+from .file_ops import (
+    open_autostart_dirfd,
+    open_dir_nofollow,
+    exists_in_dir,
+    read_text_in_dir,
+    write_replace_text_in_dir,
+    unlink_in_dir,
+)
+# --- Safe filesystem helpers are provided by file_ops module ---
 
 from .config import load_config, save_config, Config
 from .monitor import ProximityMonitor, MonitorConfig
@@ -211,6 +220,7 @@ class App:
                 logger.exception("Error running thread-safe call")
         self._loop.call_soon_threadsafe(runner)
 
+
     def _try_run(self, args: list[str]) -> bool:
         """Run a command if available and return True on success (exit code 0)."""
         try:
@@ -222,33 +232,171 @@ class App:
             logger.debug("Lock command failed: %s", " ".join(args) if args else "<none>", exc_info=True)
             return False
 
+    def _dbus_call_reply(
+        self,
+        bus_type: Gio.BusType,
+        dest: str,
+        object_path: str,
+        interface: str,
+        method: str,
+        params: Optional[GLib.Variant] = None,
+        timeout_ms: int = -1,
+    ) -> Optional[GLib.Variant]:
+        """Call a DBus method and return the GLib.Variant reply on success, else None."""
+        try:
+            if bus_type == Gio.BusType.SESSION:
+                if getattr(self, "_session_bus", None) is None:
+                    self._session_bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+                bus = self._session_bus
+            else:
+                if getattr(self, "_system_bus", None) is None:
+                    self._system_bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+                bus = self._system_bus
+            if bus is None:
+                return None
+            return bus.call_sync(
+                dest,
+                object_path,
+                interface,
+                method,
+                params,
+                None,
+                Gio.DBusCallFlags.NONE,
+                timeout_ms,
+                None,
+            )
+        except Exception:
+            logger.debug(
+                "DBus call (reply) failed: %s %s.%s on %s", object_path, interface, method, dest, exc_info=True
+            )
+            return None
+
+    def _dbus_call(
+        self,
+        bus_type: Gio.BusType,
+        dest: str,
+        object_path: str,
+        interface: str,
+        method: str,
+        params: Optional[GLib.Variant] = None,
+        timeout_ms: int = -1,
+    ) -> bool:
+        """Call a DBus method via Gio and return True if the call succeeds.
+
+        This helper centralizes DBus interactions to avoid shelling out to tools
+        like dbus-send/gdbus, ensuring session-scoped operations in multi-user
+        environments.
+        """
+        try:
+            if bus_type == Gio.BusType.SESSION:
+                if getattr(self, "_session_bus", None) is None:
+                    self._session_bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+                bus = self._session_bus
+            else:
+                if getattr(self, "_system_bus", None) is None:
+                    self._system_bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+                bus = self._system_bus
+            if bus is None:
+                return False
+            bus.call_sync(
+                dest,
+                object_path,
+                interface,
+                method,
+                params,
+                None,
+                Gio.DBusCallFlags.NONE,
+                timeout_ms,
+                None,
+            )
+            return True
+        except Exception:
+            logger.debug(
+                "DBus call failed: %s %s.%s on %s", object_path, interface, method, dest, exc_info=True
+            )
+            return False
+
     def _lock_screen(self) -> None:
-        # Lock screen with prioritized fallbacks. GNOME/Wayland: loginctl first.
+        # Lock screen with prioritized fallbacks.
+        # Preference: session-scoped desktop APIs; scoped loginctl as last resort.
         try:
             logger.warning("Away detected; attempting to lock screen")
-            
+
+            # Note: In multi-user systems, avoid broad loginctl usage which can
+            # affect other users/sessions. We prioritize session-scoped APIs and
+            # fall back to loginctl strictly scoped to THIS session (resolved via
+            # DBus) only if desktop-specific methods are unavailable.
+
             loginctl_path = shutil.which("loginctl")
             gnome_screensaver_path = shutil.which("gnome-screensaver-command")
-            dbus_send_path = shutil.which("dbus-send")
-            gdbus_path = shutil.which("gdbus")
             xdg_screensaver_path = shutil.which("xdg-screensaver")
-            dm_tool_path = shutil.which("dm-tool")
             xscreensaver_command_path = shutil.which("xscreensaver-command")
+            qdbus_path = shutil.which("qdbus")
+            xflock4_path = shutil.which("xflock4")
+            mate_screensaver_path = shutil.which("mate-screensaver-command")
+            cinnamon_screensaver_path = shutil.which("cinnamon-screensaver-command")
+            swaylock_path = shutil.which("swaylock")
+            i3lock_path = shutil.which("i3lock")
+
+            # First try DBus directly via Gio for common desktops (session-scoped)
+            dbus_attempts: list[tuple[Gio.BusType, str, str, str, str]] = [
+                (Gio.BusType.SESSION, "org.gnome.ScreenSaver", 
+                 "/org/gnome/ScreenSaver", "org.gnome.ScreenSaver", "Lock"),
+                (Gio.BusType.SESSION, "org.freedesktop.ScreenSaver", 
+                 "/ScreenSaver", "org.freedesktop.ScreenSaver", "Lock"),
+                (Gio.BusType.SESSION, "org.kde.screensaver", 
+                 "/ScreenSaver", "org.kde.screensaver", "Lock"),
+            ]
+            for bus_type, dest, obj, iface, meth in dbus_attempts:
+                if self._dbus_call(bus_type, dest, obj, iface, meth):
+                    logger.info("Screen locked via DBus: %s %s.%s", obj, iface, meth)
+                    GLib.idle_add(lambda: self._indicator.set_status("Locked (away)"))
+                    return
+
+            # DBus (system) fallback: login1 per-session Lock on current session
+            try:
+                res = self._dbus_call_reply(
+                    Gio.BusType.SYSTEM,
+                    "org.freedesktop.login1",
+                    "/org/freedesktop/login1",
+                    "org.freedesktop.login1.Manager",
+                    "GetSessionByPID",
+                    GLib.Variant("(u)", (os.getpid(),)),
+                    -1,
+                )
+                if res is not None:
+                    sess_path = res.unpack()[0]
+                    if self._dbus_call(
+                        Gio.BusType.SYSTEM,
+                        "org.freedesktop.login1",
+                        sess_path,
+                        "org.freedesktop.login1.Session",
+                        "Lock",
+                    ):
+                        logger.info("Screen locked via login1 DBus session Lock: %s", sess_path)
+                        GLib.idle_add(lambda: self._indicator.set_status("Locked (away)"))
+                        return
+            except Exception:
+                logger.debug("login1 DBus Session.Lock attempt failed", exc_info=True)
+
             
             
             candidates: list[list[str]] = [
-                # GNOME via DBus (primary)
-                [dbus_send_path, "--session", "--dest=org.gnome.ScreenSaver", 
-                 "/org/gnome/ScreenSaver", "org.gnome.ScreenSaver.Lock"],
-                # GNOME via gdbus (secondary)
-                [gdbus_path, "call", "--session", "--dest", "org.gnome.ScreenSaver", 
-                 "--object-path", "/org/gnome/ScreenSaver", "--method", "org.gnome.ScreenSaver.Lock"],
+                # KDE Plasma via qdbus (session-scoped CLI fallback)
+                [qdbus_path, "org.freedesktop.ScreenSaver", "/ScreenSaver", "Lock"],
+                [qdbus_path, "org.kde.screensaver", "/ScreenSaver", "Lock"],
                 # GNOME screensaver command (X11)
                 [gnome_screensaver_path, "-l"],
+                # Xfce helper aggregates per-desktop lockers
+                [xflock4_path],
+                # MATE and Cinnamon
+                [mate_screensaver_path, "-l"],
+                [cinnamon_screensaver_path, "-l"],
+                # Wayland/i3/X11 popular lockers
+                [swaylock_path, "-f"],
+                [i3lock_path],
                 # Desktop-agnostic fallback
                 [xdg_screensaver_path, "lock"],
-                # LightDM
-                [dm_tool_path, "lock"],
                 # XScreenSaver
                 [xscreensaver_command_path, "-lock"],
             ]
@@ -258,6 +406,29 @@ class App:
                     logger.info("Screen locked via: %s", " ".join(cmd))
                     GLib.idle_add(lambda: self._indicator.set_status("Locked (away)"))
                     return
+
+            # Scoped CLI fallback: loginctl for THIS session only (resolved via DBus),
+            # used only if all Gio DBus attempts above failed.
+            try:
+                if loginctl_path is not None:
+                    res = self._dbus_call_reply(
+                        Gio.BusType.SYSTEM,
+                        "org.freedesktop.login1",
+                        "/org/freedesktop/login1",
+                        "org.freedesktop.login1.Manager",
+                        "GetSessionByPID",
+                        GLib.Variant("(u)", (os.getpid(),)),
+                        -1,
+                    )
+                    if res is not None:
+                        sess_path = res.unpack()[0]
+                        session_id = os.path.basename(sess_path)
+                        if session_id and self._try_run([loginctl_path, "lock-session", session_id]):
+                            logger.info("Screen locked via scoped loginctl session=%s", session_id)
+                            GLib.idle_add(lambda: self._indicator.set_status("Locked (away)"))
+                            return
+            except Exception:
+                logger.debug("Scoped loginctl fallback failed", exc_info=True)
 
             logger.error("All lock methods failed")
             GLib.idle_add(lambda: self._indicator.set_status("Lock failed"))
@@ -455,86 +626,84 @@ class App:
         except Exception:
             logger.exception("Failed to update name fallback warning")
 
+    
+
     def _apply_autostart(self, enable: bool) -> None:
         """Create or remove the autostart .desktop entry for this app."""
         try:
-            autostart_dir = os.path.join(os.path.expanduser("~"), ".config", "autostart")
-            os.makedirs(autostart_dir, exist_ok=True)
-            # Harden against symlinked autostart directory to avoid clobbering arbitrary paths
-            st = os.lstat(autostart_dir)
-            if stat.S_ISLNK(st.st_mode):
-                raise RuntimeError(f"Refusing to use symlinked autostart dir: {autostart_dir}")
-            dst = os.path.join(autostart_dir, "bluetooth-screen-lock.desktop")
+            dirfd = open_autostart_dirfd()
+            dst_name = "bluetooth-screen-lock.desktop"
 
             if enable:
-                # Refuse to overwrite a symlink to avoid arbitrary file overwrite
-                if os.path.islink(dst):
-                    raise RuntimeError("Refusing to overwrite symlink: " + dst)
-                # Prefer copying existing applications desktop if available for consistency
-                src = os.path.join(os.path.expanduser("~"), ".local", "share", "applications", "bluetooth-screen-lock.desktop")
-                if os.path.exists(src):
-                    # Atomic copy via temp file in target dir
-                    with open(src, "r", encoding="utf-8") as sf, tempfile.NamedTemporaryFile(
-                        "w", encoding="utf-8", dir=autostart_dir, delete=False
-                    ) as tf:
-                        tf.write(sf.read())
-                        tmp = tf.name
-                    os.replace(tmp, dst)
-                else:
-                    # Fallback: generate a minimal desktop entry
-                    exec_cmd = os.path.join(os.path.expanduser("~"), ".local", "bin", "bluetooth-screen-lock")
-                    if not os.path.exists(exec_cmd):
-                        # Fall back to running the module with PYTHONPATH pointing to project dir
-                        project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-                        src_dir = os.path.join(project_dir, "src")
-                        # Use sh -c so we can set PYTHONPATH then exec the module
-                        exec_cmd = (
-                            f"/bin/sh -c 'PYTHONPATH=\"{src_dir}:$PYTHONPATH\" exec python3 -m bluetooth_screen_lock'"
-                        )
-                    exec_path = self._wrap_with_delay(exec_cmd)
-                    content = (
-                        "[Desktop Entry]\n"
-                        "Type=Application\n"
-                        "Name=Bluetooth Screen Lock\n"
-                        "Comment=Lock/unlock the screen based on Bluetooth proximity\n"
-                        f"Exec={exec_path}\n"
-                        "Icon=bluetooth-screen-lock\n"
-                        "Terminal=false\n"
-                        "Categories=Utility;GTK;\n"
-                        "X-GNOME-UsesNotifications=true\n"
-                        "X-GNOME-Autostart-enabled=true\n"
-                        "Hidden=false\n"
+                try:
+                    # Prefer copying existing applications desktop if available for consistency
+                    src = os.path.join(
+                        os.path.expanduser("~"),
+                        ".local",
+                        "share",
+                        "applications",
+                        "bluetooth-screen-lock.desktop",
                     )
-                    # Atomic write via temp file
-                    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=autostart_dir, delete=False) as tf:
-                        tf.write(content)
-                        tmp = tf.name
-                    os.replace(tmp, dst)
-                # Ensure autostart flags and adjust Exec for delay if needed
-                self._ensure_autostart_flags(dst)
-                self._ensure_exec_delay(dst)
-                logger.info("Autostart enabled")
+                    if os.path.exists(src):
+                        with open(src, "r", encoding="utf-8") as sf:
+                            write_replace_text_in_dir(dirfd, dst_name, sf.read())
+                    else:
+                        # Fallback: generate a minimal desktop entry
+                        exec_cmd = os.path.join(os.path.expanduser("~"), ".local", "bin", "bluetooth-screen-lock")
+                        if not os.path.exists(exec_cmd):
+                            # Fall back to running the module with PYTHONPATH pointing to project dir
+                            project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+                            src_dir = os.path.join(project_dir, "src")
+                            # Use sh -c so we can set PYTHONPATH then exec the module
+                            exec_cmd = (
+                                f"/bin/sh -c 'PYTHONPATH=\"{src_dir}:$PYTHONPATH\" exec python3 -m bluetooth_screen_lock'"
+                            )
+                        exec_path = self._wrap_with_delay(exec_cmd)
+                        content = (
+                            "[Desktop Entry]\n"
+                            "Type=Application\n"
+                            "Name=Bluetooth Screen Lock\n"
+                            "Comment=Lock/unlock the screen based on Bluetooth proximity\n"
+                            f"Exec={exec_path}\n"
+                            "Icon=bluetooth-screen-lock\n"
+                            "Terminal=false\n"
+                            "Categories=Utility;GTK;\n"
+                            "X-GNOME-UsesNotifications=true\n"
+                            "X-GNOME-Autostart-enabled=true\n"
+                            "Hidden=false\n"
+                        )
+                        write_replace_text_in_dir(dirfd, dst_name, content)
+                    # Ensure autostart flags and adjust Exec for delay if needed
+                    # (Read and write anchored to dirfd)
+                    self._ensure_autostart_flags(os.path.join(os.path.expanduser("~"), ".config", "autostart", dst_name))
+                    self._ensure_exec_delay(os.path.join(os.path.expanduser("~"), ".config", "autostart", dst_name))
+                finally:
+                    os.close(dirfd)
             else:
-                if os.path.exists(dst):
-                    os.remove(dst)
-                logger.info("Autostart disabled")
+                try:
+                    if exists_in_dir(dirfd, dst_name):
+                        unlink_in_dir(dirfd, dst_name)
+                    logger.info("Autostart disabled")
+                finally:
+                    os.close(dirfd)
         except Exception:
             logger.exception("Failed to apply autostart setting")
 
-    @staticmethod
-    def _ensure_autostart_flags(desktop_path: str) -> None:
+    def _ensure_autostart_flags(self, desktop_path: str) -> None:
         """Ensure the desktop file has autostart-related keys set correctly."""
         try:
-            # Read, tweak keys, write back (simple line-based edits)
-            if not os.path.exists(desktop_path):
-                return
-            # Refuse to write if the path is a symlink
-            if os.path.islink(desktop_path):
-                raise RuntimeError("Refusing to overwrite symlink: " + desktop_path)
-            with open(desktop_path, "r", encoding="utf-8") as f:
-                lines = f.read().splitlines()
+            # Read, tweak keys, write back (dirfd-anchored)
+            autostart_dir = os.path.dirname(desktop_path)
+            name = os.path.basename(desktop_path)
+            dirfd = open_dir_nofollow(autostart_dir)
+            try:
+                content = read_text_in_dir(dirfd, name)
+                if content is None:
+                    return
+                lines = content.splitlines()
+            finally:
+                os.close(dirfd)
             def upsert(key: str, val: str) -> None:
-                nonlocal lines
                 prefix = key + "="
                 for i, line in enumerate(lines):
                     if line.startswith(prefix):
@@ -544,25 +713,28 @@ class App:
                     lines.append(prefix + val)
             upsert("X-GNOME-Autostart-enabled", "true")
             upsert("Hidden", "false")
-            # Atomic write via temp file in same directory
-            autostart_dir = os.path.dirname(desktop_path)
-            with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=autostart_dir, delete=False) as tf:
-                tf.write("\n".join(lines) + "\n")
-                tmp = tf.name
-            os.replace(tmp, desktop_path)
+            # Write back atomically via dirfd
+            dirfd = open_dir_nofollow(autostart_dir)
+            try:
+                write_replace_text_in_dir(dirfd, name, "\n".join(lines) + "\n")
+            finally:
+                os.close(dirfd)
         except Exception:
             logger.exception("Failed to ensure autostart flags on %s", desktop_path)
 
     def _ensure_exec_delay(self, desktop_path: str) -> None:
         """Ensure the Exec line includes the configured delay if any."""
         try:
-            if not os.path.exists(desktop_path):
-                return
-            # Refuse to write if the path is a symlink
-            if os.path.islink(desktop_path):
-                raise RuntimeError("Refusing to overwrite symlink: " + desktop_path)
-            with open(desktop_path, "r", encoding="utf-8") as f:
-                lines = f.read().splitlines()
+            autostart_dir = os.path.dirname(desktop_path)
+            name = os.path.basename(desktop_path)
+            dirfd = open_dir_nofollow(autostart_dir)
+            try:
+                content = read_text_in_dir(dirfd, name)
+                if content is None:
+                    return
+                lines = content.splitlines()
+            finally:
+                os.close(dirfd)
             for i, line in enumerate(lines):
                 if line.startswith("Exec="):
                     orig = line[len("Exec="):]
@@ -577,12 +749,12 @@ class App:
                     wrapped = self._wrap_with_delay(cmd)
                     lines[i] = "Exec=" + wrapped
                     break
-            # Atomic write via temp file in same directory
-            autostart_dir = os.path.dirname(desktop_path)
-            with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=autostart_dir, delete=False) as tf:
-                tf.write("\n".join(lines) + "\n")
-                tmp = tf.name
-            os.replace(tmp, desktop_path)
+            # Write back atomically via dirfd
+            dirfd = open_dir_nofollow(autostart_dir)
+            try:
+                write_replace_text_in_dir(dirfd, name, "\n".join(lines) + "\n")
+            finally:
+                os.close(dirfd)
         except Exception:
             logger.exception("Failed to ensure Exec delay on %s", desktop_path)
 
