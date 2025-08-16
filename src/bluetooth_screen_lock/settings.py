@@ -26,6 +26,7 @@ class SettingsResult:
     hysteresis_db: int = 5
     stale_after_sec: int = 6
     re_lock_delay_sec: int = 0
+    scan_interval_sec: float = 2.0
 
 
 class SettingsWindow(Gtk.Window):
@@ -202,6 +203,23 @@ class SettingsWindow(Gtk.Window):
         self.spn_relock.set_tooltip_text("0 disables the cooldown. Typical: 10–120 seconds.")
         grid.attach(self.spn_relock, 2, 8, 2, 1)
 
+        # Scan interval
+        lbl_scan = Gtk.Label(label="Scan interval (sec):")
+        lbl_scan.set_xalign(0)
+        lbl_scan.set_tooltip_text(
+            "How often to poll for BLE advertisements.\n"
+            "Shorter = more responsive, but higher Bluetooth/CPU activity.\n"
+            "Longer = lower overhead, but slower to react."
+        )
+        grid.attach(lbl_scan, 0, 10, 2, 1)
+
+        adjustment_scan = Gtk.Adjustment(value=float(getattr(initial, 'scan_interval_sec', 2.0)), lower=0.2, upper=10.0, step_increment=0.1)
+        self.spn_scan = Gtk.SpinButton()
+        self.spn_scan.set_adjustment(adjustment_scan)
+        self.spn_scan.set_digits(1)
+        self.spn_scan.set_tooltip_text("Typical: 1.0–3.0s. Use smaller for faster detection, larger for efficiency.")
+        grid.attach(self.spn_scan, 2, 10, 2, 1)
+
         # Near command
         lbl_near_cmd = Gtk.Label(label="Command when device is near:")
         lbl_near_cmd.set_xalign(0)
@@ -219,7 +237,7 @@ class SettingsWindow(Gtk.Window):
         # Buttons
         btn_box = Gtk.Box(spacing=10)
         btn_box.set_halign(Gtk.Align.END)
-        grid.attach(btn_box, 0, 10, 4, 1)
+        grid.attach(btn_box, 0, 11, 4, 1)
 
         btn_cancel = Gtk.Button(label="Cancel")
         btn_cancel.connect("clicked", lambda _b: self.close())
@@ -288,6 +306,7 @@ class SettingsWindow(Gtk.Window):
             hysteresis_db=int(self.spn_hyst.get_value()),
             stale_after_sec=int(self.spn_stale.get_value()),
             re_lock_delay_sec=int(self.spn_relock.get_value()),
+            scan_interval_sec=float(self.spn_scan.get_value()),
         )
 
     def _on_scan(self, _btn: Gtk.Button) -> None:

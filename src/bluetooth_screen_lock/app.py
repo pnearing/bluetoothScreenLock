@@ -222,6 +222,7 @@ class App:
             hysteresis_db=getattr(self._cfg, 'hysteresis_db', 5),
             stale_after_sec=getattr(self._cfg, 'stale_after_sec', 6),
             re_lock_delay_sec=int(getattr(self._cfg, 're_lock_delay_sec', 0)),
+            scan_interval_sec=float(getattr(self._cfg, 'scan_interval_sec', 2.0)),
         )
         win = SettingsWindow(initial)
         win.set_transient_for(None)
@@ -240,6 +241,7 @@ class App:
             self._cfg.hysteresis_db = int(getattr(result, 'hysteresis_db', getattr(self._cfg, 'hysteresis_db', 5)))
             self._cfg.stale_after_sec = int(getattr(result, 'stale_after_sec', getattr(self._cfg, 'stale_after_sec', 6)))
             self._cfg.re_lock_delay_sec = int(getattr(result, 're_lock_delay_sec', getattr(self._cfg, 're_lock_delay_sec', 0)))
+            self._cfg.scan_interval_sec = float(getattr(result, 'scan_interval_sec', getattr(self._cfg, 'scan_interval_sec', 2.0)))
             
             # Handle autostart toggle or delay change
             autostart_changed = (self._cfg.autostart != result.autostart)
