@@ -336,39 +336,52 @@ class SettingsWindow(Gtk.Window):
 
         def _thread() -> None:
             async def _run() -> None:
+                backoff = 1.0
                 try:
-                    scanner = BleakScanner()
-
                     last_update = 0.0
-
-                    def on_detect(device, advertisement_data):
+                    while self._rssi_monitor_running:
+                        scanner = None
                         try:
-                            if (device.address or "").upper() != mac.upper():
-                                return
-                            rssi_val = getattr(advertisement_data, "rssi", None)
-                            if rssi_val is None:
-                                rssi_val = getattr(device, "rssi", None)
-                            if rssi_val is not None:
-                                # rate-limit label updates to ~2 Hz
-                                nonlocal last_update
-                                now = asyncio.get_event_loop().time()
-                                if now - last_update >= 0.5:
-                                    last_update = now
-                                    GLib.idle_add(lambda: self._set_rssi_label(int(rssi_val)))
-                        except Exception:
-                            logger.exception("RSSI detect callback error")
+                            scanner = BleakScanner()
 
-                    scanner.register_detection_callback(on_detect)
-                    await scanner.start()
-                    try:
-                        while self._rssi_monitor_running:
-                            await asyncio.sleep(1.0)
-                    finally:
-                        await scanner.stop()
-                except Exception:
-                    logger.exception("RSSI monitor failed")
+                            def on_detect(device, advertisement_data):
+                                try:
+                                    if (device.address or "").upper() != mac.upper():
+                                        return
+                                    rssi_val = getattr(advertisement_data, "rssi", None)
+                                    if rssi_val is None:
+                                        rssi_val = getattr(device, "rssi", None)
+                                    if rssi_val is not None:
+                                        # rate-limit label updates to ~2 Hz
+                                        nonlocal last_update
+                                        now = asyncio.get_event_loop().time()
+                                        if now - last_update >= 0.5:
+                                            last_update = now
+                                            GLib.idle_add(lambda: self._set_rssi_label(int(rssi_val)))
+                                except Exception:
+                                    logger.exception("RSSI detect callback error")
+
+                            scanner.register_detection_callback(on_detect)
+                            await scanner.start()
+                            backoff = 1.0
+                            try:
+                                while self._rssi_monitor_running:
+                                    await asyncio.sleep(1.0)
+                            finally:
+                                try:
+                                    if scanner is not None:
+                                        await scanner.stop()
+                                except Exception:
+                                    logger.exception("Error stopping RSSI scanner")
+                        except Exception as e:
+                            logger.warning("RSSI monitor error: %s; retrying in %.1fs", str(e), backoff)
+                            await asyncio.sleep(backoff)
+                            backoff = min(backoff * 2.0, 30.0)
+                            continue
                 finally:
                     GLib.idle_add(lambda: self._set_rssi_label(None))
+                    # Allow future restarts if the thread exits
+                    self._rssi_monitor_running = False
 
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
