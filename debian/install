@@ -1,4 +1,3 @@
-scripts/bluetooth-screen-lock usr/bin/
 bluetooth-screen-lock.desktop usr/share/applications/
 icons/hicolor/16x16/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/16x16/apps/
 icons/hicolor/24x24/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/24x24/apps/
@@ -9,4 +8,3 @@ icons/hicolor/128x128/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/128
 icons/hicolor/256x256/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/256x256/apps/
 icons/hicolor/512x512/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/512x512/apps/
 icons/hicolor/1024x1024/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/1024x1024/apps/
-src/bluetooth_screen_lock usr/share/bluetooth-screen-lock/src/

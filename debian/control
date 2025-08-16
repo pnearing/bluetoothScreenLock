@@ -3,7 +3,7 @@ Section: utils
 Priority: optional
 Maintainer: Peter Nearing <me@peternearing.ca>
 Standards-Version: 4.7.0
-Build-Depends: debhelper-compat (= 13)
+Build-Depends: debhelper-compat (= 13), dh-sequence-python3, python3-all
 Rules-Requires-Root: no
 
 Package: bluetooth-screen-lock
