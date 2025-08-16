@@ -648,7 +648,8 @@ class App:
                     )
                     if os.path.exists(src):
                         with open(src, "r", encoding="utf-8") as sf:
-                            write_replace_text_in_dir(dirfd, dst_name, sf.read())
+                            # Autostart desktop file should be world-readable (0644)
+                            write_replace_text_in_dir(dirfd, dst_name, sf.read(), mode=0o644)
                     else:
                         # Fallback: generate a minimal desktop entry
                         exec_cmd = os.path.join(os.path.expanduser("~"), ".local", "bin", "bluetooth-screen-lock")
@@ -674,7 +675,8 @@ class App:
                             "X-GNOME-Autostart-enabled=true\n"
                             "Hidden=false\n"
                         )
-                        write_replace_text_in_dir(dirfd, dst_name, content)
+                        # Autostart desktop file should be world-readable (0644)
+                        write_replace_text_in_dir(dirfd, dst_name, content, mode=0o644)
                     # Ensure autostart flags and adjust Exec for delay if needed
                     # (Read and write anchored to dirfd)
                     self._ensure_autostart_flags(os.path.join(os.path.expanduser("~"), ".config", "autostart", dst_name))
@@ -718,7 +720,8 @@ class App:
             # Write back atomically via dirfd
             dirfd = open_dir_nofollow(autostart_dir)
             try:
-                write_replace_text_in_dir(dirfd, name, "\n".join(lines) + "\n")
+                # Preserve world-readability for desktop entries
+                write_replace_text_in_dir(dirfd, name, "\n".join(lines) + "\n", mode=0o644)
             finally:
                 os.close(dirfd)
         except Exception:

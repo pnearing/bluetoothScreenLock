@@ -85,7 +85,7 @@ def read_text_in_dir(dirfd: int, name: str) -> Optional[str]:
         return None
 
 
-def write_replace_text_in_dir(dirfd: int, dst_name: str, content: str) -> None:
+def write_replace_text_in_dir(dirfd: int, dst_name: str, content: str, *, mode: int = 0o600) -> None:
     """Write content to a temp file in dirfd and atomically replace dst_name.
 
     Refuses if dst_name is a symlink.
@@ -100,7 +100,9 @@ def write_replace_text_in_dir(dirfd: int, dst_name: str, content: str) -> None:
         flags |= os.O_CLOEXEC
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
-    fd = os.open(tmp_name, flags, 0o644, dir_fd=dirfd)
+    # Use caller-provided mode (default 0600) to avoid exposing sensitive content
+    # during the small window before rename when the directory may be world-readable.
+    fd = os.open(tmp_name, flags, mode, dir_fd=dirfd)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)
