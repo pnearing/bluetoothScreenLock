@@ -1,7 +1,7 @@
 """Bluetooth Screen Lock package metadata and public exports."""
 
 # Single source of truth for the package version. Keep in sync with packaging.
-__version__ = "0.1.3-1"
+__version__ = "0.1.4-1"
 
 __all__ = [
     "__version__",
