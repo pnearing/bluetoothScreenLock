@@ -1,3 +1,17 @@
+"""GTK/Ayatana tray indicator for Bluetooth Screen Lock.
+
+This module provides the `TrayIndicator` wrapper around AppIndicator/Ayatana
+indicators to expose a simple status menu with:
+- Live status line
+- Optional warning line
+- Manual "Lock now" action
+- Enable/disable automatic locking toggle
+- Settings and Quit entries
+
+It targets GNOME/GTK trays (no Qt), trying both `AppIndicator3` and
+`AyatanaAppIndicator3` at import time.
+"""
+
 import logging
 from typing import Callable, Optional
 
@@ -25,6 +39,23 @@ logger = logging.getLogger(__name__)
 
 
 class TrayIndicator:
+    """System tray menu/indicator for the app.
+
+    Parameters
+    ----------
+    app_id : str
+        Icon/theme id used by the indicator.
+    on_open_settings : Callable[[], None]
+        Callback invoked when the user clicks "Settings".
+    on_quit : Callable[[], None]
+        Callback invoked when the user clicks "Quit".
+    on_lock_now : Optional[Callable[[], None]]
+        Optional callback to trigger an immediate lock action.
+    on_toggle_locking : Optional[Callable[[bool], None]]
+        Optional callback invoked when the lock toggle state changes.
+    locking_enabled : bool
+        Initial state of the lock toggle.
+    """
     def __init__(
         self,
         app_id: str,
@@ -82,14 +113,17 @@ class TrayIndicator:
         logger.debug("TrayIndicator initialized with app_id=%s", app_id)
 
     def _on_settings(self, _item: Gtk.MenuItem) -> None:
+        """Open the app's settings window via the provided callback."""
         logger.info("Settings menu clicked")
         self._on_open_settings()
 
     def _on_quit_activate(self, _item: Gtk.MenuItem) -> None:
+        """Quit the application via the provided callback."""
         logger.info("Quit menu clicked")
         self._on_quit()
 
     def set_status(self, text: str) -> None:
+        """Update the status line in the tray menu in a thread-safe way."""
         def update() -> None:
             self._status_label.set_label(f"Status: {text}")
         GLib.idle_add(update)
@@ -106,6 +140,7 @@ class TrayIndicator:
         GLib.idle_add(update)
 
     def _on_lock_now_activate(self, _item: Gtk.MenuItem) -> None:
+        """Handle clicks on the "Lock now" menu item."""
         logger.info("Lock now menu clicked")
         try:
             if self._on_lock_now is not None:
@@ -117,6 +152,7 @@ class TrayIndicator:
             logger.exception("Lock now action failed")
 
     def _on_lock_toggle(self, item: Gtk.CheckMenuItem) -> None:
+        """Handle the enable/disable automatic locking toggle."""
         enabled = item.get_active()
         logger.info("Locking toggled: %s", "enabled" if enabled else "disabled")
         try:
@@ -126,6 +162,7 @@ class TrayIndicator:
             logger.exception("Failed to handle locking toggle")
 
     def set_locking_enabled(self, enabled: bool) -> None:
+        """Programmatically set the toggle state (thread-safe)."""
         def update() -> None:
             self._lock_toggle.set_active(bool(enabled))
         GLib.idle_add(update)

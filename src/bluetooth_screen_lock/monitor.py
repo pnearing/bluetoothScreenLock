@@ -1,3 +1,11 @@
+"""BLE RSSI-based proximity monitor.
+
+Implements scanning via `bleak.BleakScanner` and calls user-provided callbacks
+when the target device transitions to AWAY (locks after grace) or NEAR (above
+threshold + hysteresis for N consecutive scans). Also emits live RSSI updates
+for UI display.
+"""
+
 import asyncio
 import time
 import logging
@@ -27,6 +35,11 @@ def _redact_mac(mac: Optional[str]) -> str:
 
 @dataclass
 class MonitorConfig:
+    """Runtime configuration for `ProximityMonitor`.
+
+    device_mac and/or device_name determine the target; MAC is preferred. Name
+    equality is only used as a fallback when MAC is unset.
+    """
     device_mac: Optional[str]
     rssi_threshold: int  # dBm
     grace_period_sec: int
@@ -40,20 +53,35 @@ class MonitorConfig:
 
 
 class ProximityMonitor:
-    """
-    BLE RSSI-based proximity monitor using BleakScanner.
-    - Prefers RSSI from advertisements for target MAC.
-    - Fallback: if device not seen at all for grace period, consider away.
-    Runs in an asyncio Task.
+    """Asynchronous BLE proximity evaluator using `BleakScanner`.
+
+    Behavior:
+    - Uses advertisement RSSI when device is detected; invalidates stale values
+      after `stale_after_sec`.
+    - Triggers NEAR when RSSI exceeds `rssi_threshold + hysteresis_db` for
+      `near_consecutive_scans` cycles; triggers AWAY when RSSI stays below
+      threshold for `grace_period_sec`, or when unseen for
+      `stale_after_sec + unseen_grace_sec`.
+    - Invokes callbacks on the GTK thread via the owner if they dispatch.
+
+    Attributes:
+        _config (MonitorConfig): Runtime configuration.
+        _on_away (Callable[()]): Callback for AWAY state.
+        _on_near (Optional[Callable[[Optional[int]], None]]): Callback for NEAR state.
+        _on_rssi (Optional[Callable[[Optional[int]], None]]): Callback for live RSSI updates.
     """
 
     def __init__(
         self,
         config: MonitorConfig,
-        on_away: Callable[[], None],
+        on_away: Callable[()],
         on_near: Optional[Callable[[Optional[int]], None]] = None,
         on_rssi: Optional[Callable[[Optional[int]], None]] = None,
     ) -> None:
+        """Create a monitor with callbacks for state changes.
+
+        on_away is required; on_near and on_rssi are optional.
+        """
         self._config = config
         self._on_away = on_away
         self._on_near = on_near
@@ -234,6 +262,7 @@ class ProximityMonitor:
                 continue
 
     def start(self) -> None:
+        """Start the scan loop in the current event loop as a Task."""
         if self._running:
             return
         self._running = True
@@ -242,6 +271,7 @@ class ProximityMonitor:
         logger.info("ProximityMonitor started")
 
     async def stop_async(self) -> None:
+        """Stop the scan loop and await task completion."""
         if not self._running:
             return
         self._running = False
@@ -253,6 +283,7 @@ class ProximityMonitor:
         logger.info("ProximityMonitor stopped")
 
     def update_config(self, config: MonitorConfig) -> None:
+        """Swap configuration and reset internal state safely."""
         self._config = config
         # Reset state when config changes
         self._last_seen_ts = 0.0

@@ -1,3 +1,10 @@
+"""Configuration load/save utilities for Bluetooth Screen Lock.
+
+This module defines the persisted configuration schema (`Config`) and safe
+helpers to load and save YAML configuration files under
+`~/.config/bluetooth-screen-lock/config.yaml` with restrictive permissions.
+"""
+
 import os
 import yaml
 import logging
@@ -14,6 +21,41 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Config:
+    """User-configurable settings persisted to YAML.
+
+    Attributes
+    ----------
+    device_mac : Optional[str]
+        Target device MAC (preferred) like "AA:BB:CC:DD:EE:FF".
+    device_name : Optional[str]
+        Optional device name used only as fallback when MAC is not set.
+    rssi_threshold : int
+        dBm threshold; lower (more negative) means farther.
+    grace_period_sec : int
+        Seconds RSSI must remain below threshold before locking.
+    unseen_grace_sec : int
+        Additional seconds to wait after RSSI becomes unknown before locking.
+    autostart : bool
+        Create a desktop autostart entry on save when enabled.
+    start_delay_sec : int
+        Delay app start at login by N seconds.
+    near_command : Optional[str]
+        Optional command to run when device becomes NEAR.
+    near_shell : bool
+        If true, run `near_command` via a shell.
+    hysteresis_db : int
+        Extra dB above threshold required for NEAR; reduces flapping.
+    stale_after_sec : int
+        Consider RSSI unknown if no sightings for this many seconds.
+    scan_interval_sec : float
+        BLE scan loop interval.
+    locking_enabled : bool
+        Master toggle to enable/disable automatic locking.
+    re_lock_delay_sec : int
+        Suppress auto-lock for this many seconds after an unlock/NEAR.
+    near_consecutive_scans : int
+        Require N consecutive above-near readings before NEAR triggers.
+    """
     device_mac: Optional[str] = None  # e.g., "AA:BB:CC:DD:EE:FF"
     device_name: Optional[str] = None
     rssi_threshold: int = -75  # dBm
@@ -35,7 +77,7 @@ DEFAULT_CONFIG = Config()
 
 
 def ensure_config_dir() -> None:
-    # Ensure directory exists with restrictive permissions and is not a symlink
+    """Ensure config directory exists, is not a symlink, and has 0700 perms."""
     os.makedirs(CONFIG_DIR, mode=0o700, exist_ok=True)
     st = os.lstat(CONFIG_DIR)
     if stat.S_ISLNK(st.st_mode):
@@ -44,7 +86,7 @@ def ensure_config_dir() -> None:
 
 
 def _safe_open_nofollow(path: str, mode: int = 0o600):
-    """Open a file for writing without following symlinks.
+    """Open a file securely for writing without following symlinks.
 
     Returns a raw file descriptor opened with O_NOFOLLOW when available and
     verifies the target is not a symlink as a defense-in-depth check.
@@ -62,6 +104,10 @@ def _safe_open_nofollow(path: str, mode: int = 0o600):
 
 
 def load_config() -> Config:
+    """Load configuration from disk or create defaults on first run.
+
+    Ensures sane ranges for key values and hardens file permissions.
+    """
     ensure_config_dir()
     if not os.path.exists(CONFIG_PATH):
         logger.info("Config not found; creating default at %s", CONFIG_PATH)
@@ -98,6 +144,7 @@ def load_config() -> Config:
 
 
 def save_config(config: Config) -> None:
+    """Persist configuration atomically with restrictive permissions."""
     ensure_config_dir()
     # Write with restrictive permissions regardless of umask, and do not follow symlinks
     fd = _safe_open_nofollow(CONFIG_PATH, 0o600)

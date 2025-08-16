@@ -1,3 +1,10 @@
+"""GTK settings window for configuring Bluetooth Screen Lock.
+
+Provides device selection (with BLE scanning), live RSSI display to help pick
+an `rssi_threshold`, and additional tuning options (grace period, hysteresis,
+stale timeout, debounce, etc.).
+"""
+
 import asyncio
 import logging
 from typing import Optional, List, Tuple
@@ -16,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SettingsResult:
+    """Value object returned from the settings dialog on save."""
     device_mac: Optional[str]
     device_name: Optional[str]
     rssi_threshold: int
@@ -32,6 +40,7 @@ class SettingsResult:
 
 
 class SettingsWindow(Gtk.Window):
+    """Preferences dialog for selecting a device and tuning proximity logic."""
     def __init__(self, initial: SettingsResult) -> None:
         super().__init__(title="Bluetooth Screen Lock Settings")
         self.set_default_size(460, 360)
@@ -357,6 +366,7 @@ class SettingsWindow(Gtk.Window):
         self.hide()
 
     def get_result(self) -> SettingsResult:
+        """Collect current UI values into a `SettingsResult`."""
         return SettingsResult(
             device_mac=self._selected_mac,
             device_name=self._selected_name,
@@ -374,6 +384,7 @@ class SettingsWindow(Gtk.Window):
         )
 
     def _on_scan(self, _btn: Gtk.Button) -> None:
+        """Discover nearby BLE devices and populate the combo box."""
         self.set_sensitive(False)
         # pause RSSI monitor during scan to avoid adapter contention
         self._stop_rssi_monitor()

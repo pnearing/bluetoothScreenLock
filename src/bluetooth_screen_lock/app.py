@@ -1,3 +1,20 @@
+"""GTK system tray app to lock the screen based on Bluetooth proximity.
+
+This is the primary GUI application for Bluetooth Screen Lock. It provides a
+GNOME/GTK tray indicator (`TrayIndicator`) and orchestrates a BLE RSSI-based
+proximity monitor (`ProximityMonitor`) to automatically lock the screen when
+the paired device moves away, and optionally run a command when the device
+comes near again.
+
+Key features:
+- RSSI threshold with grace period and hysteresis to reduce flapping
+- Optional near-action command (e.g., dismiss screensaver on return)
+- Autostart .desktop management with optional startup delay
+- Re-lock cooldown after unlock (via GNOME ScreenSaver/login1 signals)
+
+This module is GNOME/GTK-focused (no Qt) and uses GLib main loop integration.
+"""
+
 import asyncio
 import base64
 import os
@@ -41,6 +58,20 @@ def _redact_mac(mac: Optional[str]) -> str:
 
 
 class App:
+    """Main application controller.
+
+    Responsibilities:
+    - Initialize tray indicator and settings window hooks.
+    - Manage an asyncio loop in a background thread for BLE scanning.
+    - React to proximity events to lock the session or run a near command.
+    - Handle autostart .desktop creation/removal and startup delay wrapping.
+    - Subscribe to unlock signals to implement re-lock cooldowns.
+
+    Threading model:
+    - GTK runs on the main thread via `Gtk.main()`.
+    - An asyncio event loop is started in a daemon thread for BLE operations.
+    - Cross-thread interactions use `GLib.idle_add` (UI) and `_call_soon_threadsafe` (asyncio).
+    """
     def __init__(self) -> None:
         logger.debug("Initializing App")
         self._cfg: Config = load_config()
@@ -195,24 +226,32 @@ class App:
         # Lock screen with prioritized fallbacks. GNOME/Wayland: loginctl first.
         try:
             logger.warning("Away detected; attempting to lock screen")
+            
+            loginctl_path = shutil.which("loginctl")
+            gnome_screensaver_path = shutil.which("gnome-screensaver-command")
+            dbus_send_path = shutil.which("dbus-send")
+            gdbus_path = shutil.which("gdbus")
+            xdg_screensaver_path = shutil.which("xdg-screensaver")
+            dm_tool_path = shutil.which("dm-tool")
+            xscreensaver_command_path = shutil.which("xscreensaver-command")
+            
+            
             candidates: list[list[str]] = [
                 # Primary: systemd-logind (GNOME/Wayland)
-                ["loginctl", "lock-session"],
+                [loginctl_path, "lock-session"],
                 # GNOME screensaver command (X11)
-                ["gnome-screensaver-command", "-l"],
+                [gnome_screensaver_path, "-l"],
                 # GNOME via DBus (alternative)
-                ["dbus-send", "--session", "--dest=org.gnome.ScreenSaver", 
+                [dbus_send_path, "--session", "--dest=org.gnome.ScreenSaver", 
                  "/org/gnome/ScreenSaver", "org.gnome.ScreenSaver.Lock"],
-                ["gdbus", "call", "--session", "--dest", "org.gnome.ScreenSaver", 
+                [gdbus_path, "call", "--session", "--dest", "org.gnome.ScreenSaver", 
                  "--object-path", "/org/gnome/ScreenSaver", "--method", "org.gnome.ScreenSaver.Lock"],
                 # Desktop-agnostic fallback
-                ["xdg-screensaver", "lock"],
+                [xdg_screensaver_path, "lock"],
                 # LightDM
-                ["dm-tool", "lock"],
+                [dm_tool_path, "lock"],
                 # XScreenSaver
-                ["xscreensaver-command", "-lock"],
-                # systemd: lock all sessions as a last resort
-                ["loginctl", "lock-sessions"],
+                [xscreensaver_command_path, "-lock"],
             ]
 
             for cmd in candidates:
