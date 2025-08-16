@@ -44,6 +44,10 @@ class App:
 
         self._monitor: Optional[ProximityMonitor] = None
         self._was_near: bool = False
+        # Armed indicates whether a near transition is allowed to trigger the near command.
+        # Start disarmed so that if the app launches while the device is already near,
+        # we do NOT execute the near command until the device has gone away at least once.
+        self._armed: bool = False
         self._ensure_monitor()
 
         self._indicator.set_status("Idle" if not self._cfg.device_mac else "Monitoring")
@@ -73,7 +77,10 @@ class App:
                 is_near = rssi > self._cfg.rssi_threshold
                 if is_near and not self._was_near:
                     # Transitioned to NEAR
-                    self._run_near_command()
+                    if self._armed:
+                        self._run_near_command()
+                        # Disarm until we've observed an AWAY again
+                        self._armed = False
                 self._was_near = is_near
             except Exception:
                 logger.exception("on_near handling failed")
@@ -81,6 +88,8 @@ class App:
         def on_away() -> None:
             # Reset near state and lock
             self._was_near = False
+            # Arm the near action so that the next NEAR transition can execute the command
+            self._armed = True
             self._lock_screen()
 
         self._monitor = ProximityMonitor(
