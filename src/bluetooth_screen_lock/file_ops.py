@@ -24,6 +24,9 @@ def open_dir_nofollow(path: str) -> int:
         flags |= os.O_DIRECTORY
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
+    # Ensure the fd is not inherited by children; avoids leaking privileged dirfds.
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
     dirfd = os.open(path, flags)
     st = os.fstat(dirfd)
     if not stat.S_ISDIR(st.st_mode):
@@ -65,7 +68,13 @@ def read_text_in_dir(dirfd: int, name: str) -> Optional[str]:
     try:
         if is_symlink_in_dir(dirfd, name):
             raise RuntimeError("Refusing to read symlink: " + name)
-        fd = os.open(name, os.O_RDONLY, dir_fd=dirfd)
+        # Open atomically with O_NOFOLLOW to prevent TOCTOU symlink races, and O_CLOEXEC to avoid fd leaks.
+        flags = os.O_RDONLY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        if hasattr(os, "O_CLOEXEC"):
+            flags |= os.O_CLOEXEC
+        fd = os.open(name, flags, dir_fd=dirfd)
         try:
             with os.fdopen(fd, "r", encoding="utf-8") as f:
                 return f.read()
@@ -84,7 +93,13 @@ def write_replace_text_in_dir(dirfd: int, dst_name: str, content: str) -> None:
     if is_symlink_in_dir(dirfd, dst_name):
         raise RuntimeError("Refusing to overwrite symlink: " + dst_name)
     tmp_name = f".__tmp.{os.getpid()}.{int(time.time()*1e6)}"
+    # Create a unique temp file; use CLOEXEC to avoid leaks. O_NOFOLLOW guards
+    # against an attacker pre-creating a symlink with our tmp_name.
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
     fd = os.open(tmp_name, flags, 0o644, dir_fd=dirfd)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
