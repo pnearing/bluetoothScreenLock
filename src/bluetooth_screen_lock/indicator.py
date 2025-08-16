@@ -31,17 +31,25 @@ class TrayIndicator:
         on_open_settings: Callable[[], None],
         on_quit: Callable[[], None],
         on_lock_now: Optional[Callable[[], None]] = None,
+        on_toggle_locking: Optional[Callable[[bool], None]] = None,
+        locking_enabled: bool = True,
     ) -> None:
         self._app_id = app_id
         self._on_open_settings = on_open_settings
         self._on_quit = on_quit
         self._on_lock_now = on_lock_now
+        self._on_toggle_locking = on_toggle_locking
 
         self._status_label = Gtk.MenuItem(label="Status: Idle")
         self._status_label.set_sensitive(False)
 
         self._lock_item = Gtk.MenuItem(label="Lock now")
         self._lock_item.connect("activate", self._on_lock_now_activate)
+
+        # Toggle for enabling/disabling automatic locking
+        self._lock_toggle = Gtk.CheckMenuItem(label="Enable locking")
+        self._lock_toggle.set_active(bool(locking_enabled))
+        self._lock_toggle.connect("toggled", self._on_lock_toggle)
 
         self._settings_item = Gtk.MenuItem(label="Settings…")
         self._settings_item.connect("activate", self._on_settings)
@@ -53,6 +61,7 @@ class TrayIndicator:
         menu.append(self._status_label)
         menu.append(Gtk.SeparatorMenuItem())
         menu.append(self._lock_item)
+        menu.append(self._lock_toggle)
         menu.append(self._settings_item)
         menu.append(self._quit_item)
         menu.show_all()
@@ -90,3 +99,17 @@ class TrayIndicator:
             self.set_status("Locked (manual)")
         except Exception:
             logger.exception("Lock now action failed")
+
+    def _on_lock_toggle(self, item: Gtk.CheckMenuItem) -> None:
+        enabled = item.get_active()
+        logger.info("Locking toggled: %s", "enabled" if enabled else "disabled")
+        try:
+            if self._on_toggle_locking is not None:
+                self._on_toggle_locking(enabled)
+        except Exception:
+            logger.exception("Failed to handle locking toggle")
+
+    def set_locking_enabled(self, enabled: bool) -> None:
+        def update() -> None:
+            self._lock_toggle.set_active(bool(enabled))
+        GLib.idle_add(update)

@@ -16,14 +16,15 @@ class Config:
     device_mac: Optional[str] = None  # e.g., "AA:BB:CC:DD:EE:FF"
     device_name: Optional[str] = None
     rssi_threshold: int = -75  # dBm
-    grace_period_sec: int = 8  # seconds below threshold before locking
-    unseen_grace_sec: int = 8  # seconds unseen before locking (when RSSI is unknown)
+    grace_period_sec: int = 15  # seconds below threshold before locking
+    unseen_grace_sec: int = 12  # seconds unseen before locking (when RSSI is unknown)
     autostart: bool = False
     start_delay_sec: int = 0  # delay app start on login
     near_command: Optional[str] = None  # shell command to run when device comes near
     hysteresis_db: int = 5  # additional dB above threshold required to consider NEAR (prevents flapping)
-    stale_after_sec: int = 6  # invalidate RSSI if not seen for this many seconds
+    stale_after_sec: int = 8  # invalidate RSSI if not seen for this many seconds
     scan_interval_sec: float = 2.0  # BLE scan loop interval
+    locking_enabled: bool = True  # globally enable/disable automatic screen locking
 
 
 DEFAULT_CONFIG = Config()

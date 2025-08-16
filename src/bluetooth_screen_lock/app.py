@@ -30,6 +30,8 @@ class App:
             on_open_settings=self._open_settings,
             on_quit=self.quit,
             on_lock_now=self._lock_screen,
+            on_toggle_locking=self._on_toggle_locking,
+            locking_enabled=bool(getattr(self._cfg, "locking_enabled", True)),
         )
 
         # Ensure autostart entry reflects current config on startup
@@ -50,7 +52,11 @@ class App:
         self._armed: bool = False
         self._ensure_monitor()
 
-        self._indicator.set_status("Idle" if not self._cfg.device_mac else "Monitoring")
+        self._indicator.set_status(
+            "Idle" if not self._cfg.device_mac else (
+                "Monitoring" if getattr(self._cfg, "locking_enabled", True) else "Monitoring (lock off)"
+            )
+        )
         logger.info("App ready: %s", "Idle" if not self._cfg.device_mac else "Monitoring")
 
     def _run_loop(self) -> None:
@@ -91,7 +97,11 @@ class App:
             self._was_near = False
             # Arm the near action so that the next NEAR transition can execute the command
             self._armed = True
-            self._lock_screen()
+            # Only auto-lock if locking is enabled
+            if getattr(self._cfg, "locking_enabled", True):
+                self._lock_screen()
+            else:
+                self._indicator.set_status("Away (lock off)")
 
         def on_rssi(rssi: Optional[int]) -> None:
             try:
@@ -236,6 +246,19 @@ class App:
                 self._ensure_monitor()
 
         win.connect("hide", on_hide)
+
+    def _on_toggle_locking(self, enabled: bool) -> None:
+        try:
+            self._cfg.locking_enabled = bool(enabled)
+            save_config(self._cfg)
+            # Reflect in UI
+            if self._cfg.device_mac:
+                self._indicator.set_status("Monitoring" if enabled else "Monitoring (lock off)")
+            # Ensure the tray toggle reflects canonical state (in case it was changed programmatically elsewhere)
+            self._indicator.set_locking_enabled(self._cfg.locking_enabled)
+            logger.info("Locking %s", "enabled" if enabled else "disabled")
+        except Exception:
+            logger.exception("Failed to persist locking toggle")
 
     def _apply_autostart(self, enable: bool) -> None:
         """Create or remove the autostart .desktop entry for this app."""

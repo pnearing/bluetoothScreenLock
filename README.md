@@ -54,7 +54,10 @@ You should see a tray icon (wireless icon). Open Settings to:
 - Scan for nearby BLE devices and select your phone.
 - Set RSSI threshold (e.g., -75 dBm) and grace period (seconds).
 
-The tray menu shows live RSSI while monitoring. When RSSI stays below the threshold or the device isn’t seen for the grace period, the app locks the session.
+The tray menu shows live RSSI while monitoring. The app locks the session when either:
+
+- RSSI stays below the threshold for `grace_period_sec`, or
+- The device is not seen for `stale_after_sec + unseen_grace_sec` (i.e., after RSSI becomes stale, wait extra time before locking).
 
 ## Autostart and startup delay
 
@@ -84,12 +87,19 @@ print(__version__)
 User config is stored at `~/.config/bluetooth-screen-lock/config.yaml` with keys:
 - `device_mac`, `device_name`
 - `rssi_threshold` (default -75)
-- `grace_period_sec` (default 8)
+- `grace_period_sec` (default 15)
+- `unseen_grace_sec` (default 12) — additional wait after RSSI becomes stale before locking due to "unseen".
 - `autostart` (default false)
 - `start_delay_sec` (default 0)
 - `near_command` (default null)
 - `hysteresis_db` (default 5)
-- `stale_after_sec` (default 6)
+- `stale_after_sec` (default 8)
+- `scan_interval_sec` (default 2.0) — BLE scan loop interval.
+
+### Tuning recommendations
+- __Make grace > stale__: set `grace_period_sec` moderately higher than `stale_after_sec` to avoid locking on brief advertising gaps.
+- __Unseen buffer__: set `unseen_grace_sec` so that unseen lock ≈ `stale_after_sec + unseen_grace_sec` is longer than typical gaps. Example: `stale_after_sec: 8`, `unseen_grace_sec: 12` → unseen lock ≈ 20s.
+- __Scan interval__: lower `scan_interval_sec` (e.g., 1.0) for smoother updates; higher values reduce CPU at the cost of responsiveness.
 
 ## Roadmap
 - Optional systemd user service to autostart on login.
