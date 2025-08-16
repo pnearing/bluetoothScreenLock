@@ -144,29 +144,54 @@ def load_config() -> Config:
 
 
 def save_config(config: Config) -> None:
-    """Persist configuration atomically with restrictive permissions."""
+    """Persist configuration atomically with restrictive permissions.
+
+    Implementation details:
+    - Write to a temp file in the same directory with 0600 perms (no symlink follow).
+    - Flush and fsync the temp file for durability.
+    - Atomically replace the destination with os.replace().
+    - Fsync the directory to persist the rename.
+    """
     ensure_config_dir()
-    # Write with restrictive permissions regardless of umask, and do not follow symlinks
-    fd = _safe_open_nofollow(CONFIG_PATH, 0o600)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            yaml.safe_dump(asdict(config), f, sort_keys=False)
-            # Flush and fsync for durability
-            f.flush()
-            os.fsync(f.fileno())
-        # Ensure permissions are correct even if file pre-existed
-        os.chmod(CONFIG_PATH, 0o600)
-        # fsync the directory to persist the entry metadata
-        dirfd = os.open(os.path.dirname(CONFIG_PATH), os.O_DIRECTORY)
+
+    def _atomic_write_yaml(final_path: str, data: dict) -> None:
+        dir_path = os.path.dirname(final_path)
+        # Create a unique temp file next to the destination, never following symlinks
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        tmp_path = os.path.join(dir_path, ".config.yaml.tmp-{}".format(os.getpid()))
+        fd = None
         try:
-            os.fsync(dirfd)
-        finally:
-            os.close(dirfd)
-    except Exception:
-        # If opening or writing fails, ensure fd is closed
-        try:
-            os.close(fd)
+            fd = os.open(tmp_path, flags, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                fd = None  # ownership transferred to file object
+                yaml.safe_dump(data, f, sort_keys=False)
+                f.flush()
+                os.fsync(f.fileno())
+            # Replace atomically
+            os.replace(tmp_path, final_path)
+            # Ensure permissions on final path (in case pre-existed with different perms)
+            os.chmod(final_path, 0o600)
+            # Fsync directory entry metadata
+            dirfd = os.open(dir_path, os.O_DIRECTORY)
+            try:
+                os.fsync(dirfd)
+            finally:
+                os.close(dirfd)
         except Exception:
-            pass
-        raise
-    logger.debug("Config saved to %s", CONFIG_PATH)
+            # Best-effort cleanup of temp file
+            try:
+                if fd is not None:
+                    os.close(fd)
+            except Exception:
+                pass
+            try:
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+            except Exception:
+                pass
+            raise
+
+    _atomic_write_yaml(CONFIG_PATH, asdict(config))
+    logger.debug("Config saved to %s (atomic)", CONFIG_PATH)
