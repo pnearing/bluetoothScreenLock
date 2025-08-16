@@ -71,8 +71,6 @@ class App:
         )
         def on_near(rssi: int) -> None:
             try:
-                # Update tray status with latest RSSI
-                self._indicator.set_status(f"RSSI {rssi} dBm")
                 # Determine near condition: RSSI above threshold
                 is_near = rssi > self._cfg.rssi_threshold
                 if is_near and not self._was_near:
@@ -92,10 +90,20 @@ class App:
             self._armed = True
             self._lock_screen()
 
+        def on_rssi(rssi: Optional[int]) -> None:
+            try:
+                if rssi is None:
+                    self._indicator.set_status("Not Read")
+                else:
+                    self._indicator.set_status(f"RSSI {int(rssi)} dBm")
+            except Exception:
+                logger.exception("on_rssi handling failed")
+
         self._monitor = ProximityMonitor(
             config=mon_cfg,
             on_away=on_away,
             on_near=on_near,
+            on_rssi=on_rssi,
         )
         # Start in asyncio loop thread
         def start_monitor() -> None:

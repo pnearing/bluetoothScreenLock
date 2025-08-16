@@ -31,11 +31,13 @@ class ProximityMonitor:
         config: MonitorConfig,
         on_away: Callable[[], None],
         on_near: Optional[Callable[[int], None]] = None,
+        on_rssi: Optional[Callable[[Optional[int]], None]] = None,
         scan_interval: float = 2.0,
     ) -> None:
         self._config = config
         self._on_away = on_away
         self._on_near = on_near
+        self._on_rssi = on_rssi
         self._scan_interval = scan_interval
 
         self._task: Optional[asyncio.Task] = None
@@ -95,6 +97,13 @@ class ProximityMonitor:
                                 # Consider RSSI unknown if not seen for a while
                                 rssi = None
                                 self._last_rssi = None
+
+                        # Emit current RSSI (or None if unknown) so UI can reflect live status
+                        if self._on_rssi is not None:
+                            try:
+                                self._on_rssi(rssi)
+                            except Exception:
+                                logger.exception("on_rssi callback failed")
 
                         # Evaluate proximity
                         away = False
