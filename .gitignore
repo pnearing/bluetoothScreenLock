@@ -155,3 +155,28 @@ cython_debug/
 *.deb
 
 ignore_dir/
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Debian packaging outputs (keep debian/control, changelog, rules, etc.)
+*.deb
+*.ddeb
+*.udeb
+*.changes
+*.build
+*.buildinfo
+*.dsc
+*.tar.*
+# debhelper-generated files inside debian/
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars
+debian/tmp/
+debian/*/.debhelper/
+debian/*/debhelper-build-stamp
+debian/*/files
+debian/*/substvars
+debian/*/tmp/
+debian/bluetooth-screen-lock
