@@ -290,6 +290,16 @@ class App:
             logger.info("Quitting application")
             Gtk.main_quit()
         finally:
+            # First, stop the monitor gracefully so its BLE scanner can shut down in its finally block
+            try:
+                if self._monitor is not None and self._loop.is_running():
+                    logger.debug("Stopping proximity monitor before shutting down loop")
+                    fut = asyncio.run_coroutine_threadsafe(self._monitor.stop_async(), self._loop)
+                    # Wait a moment for clean shutdown
+                    fut.result(timeout=5.0)
+            except Exception:
+                logger.exception("Error while stopping proximity monitor")
+
             if self._loop.is_running():
                 logger.debug("Stopping asyncio loop")
                 self._loop.call_soon_threadsafe(self._loop.stop)
