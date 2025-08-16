@@ -9,6 +9,22 @@ from bleak import BleakScanner
 logger = logging.getLogger(__name__)
 
 
+def _redact_mac(mac: Optional[str]) -> str:
+    """Return a partially redacted MAC for INFO logs, e.g., AA:BB:..:..:EE:FF.
+    Falls back to <redacted> if the input is malformed; <none> for empty.
+    """
+    try:
+        if not mac:
+            return "<none>"
+        # Strip non-alphanumeric and uppercase
+        s = "".join(ch for ch in str(mac) if ch.isalnum()).upper()
+        if len(s) >= 12:
+            return f"{s[0:2]}:{s[2:4]}:..:..:{s[-4:-2]}:{s[-2:]}"
+        return "<redacted>"
+    except Exception:
+        return "<redacted>"
+
+
 @dataclass
 class MonitorConfig:
     device_mac: Optional[str]
@@ -35,7 +51,7 @@ class ProximityMonitor:
         self,
         config: MonitorConfig,
         on_away: Callable[[], None],
-        on_near: Optional[Callable[[int], None]] = None,
+        on_near: Optional[Callable[[Optional[int]], None]] = None,
         on_rssi: Optional[Callable[[Optional[int]], None]] = None,
     ) -> None:
         self._config = config
@@ -53,13 +69,16 @@ class ProximityMonitor:
         self._below_since_ts: Optional[float] = None
         # Count of consecutive scans above near trigger (for debounce)
         self._near_consec_count: int = 0
+        # Count consecutive BLE scanner errors for de-spamming
+        self._ble_error_count: int = 0
         logger.debug(
             "ProximityMonitor created: device=%s threshold=%s dBm grace=%ss interval=%.1fs",
             self._config.device_mac, self._config.rssi_threshold, self._config.grace_period_sec, self._scan_interval
         )
 
     async def _scan_loop(self) -> None:
-        logger.info("BLE scan loop starting for %s (name~=%s)", self._config.device_mac, self._config.device_name)
+        logger.info("BLE scan loop starting for %s (name~=%s)", _redact_mac(self._config.device_mac), self._config.device_name)
+        logger.debug("BLE scan loop starting for device=%s name~=%s", self._config.device_mac, self._config.device_name)
 
         # Outer retry loop to handle adapter off / intermittent BlueZ errors gracefully
         backoff = 1.0
@@ -99,6 +118,8 @@ class ProximityMonitor:
                 await scanner.start()
                 # Reset backoff after a successful start
                 backoff = 1.0
+                # Reset error counter on successful start to allow initial warnings if issues reoccur
+                self._ble_error_count = 0
 
                 try:
                     while self._running:
@@ -201,7 +222,13 @@ class ProximityMonitor:
                         logger.exception("Error while stopping BLE scanner")
             except Exception as e:
                 # Common when Bluetooth is turned off or adapter is not ready
-                logger.warning("BLE scanner error: %s; retrying in %.1fs", str(e), backoff)
+                self._ble_error_count += 1
+                if self._ble_error_count <= 3:
+                    # Warn for the first few occurrences without stack to keep logs clean
+                    logger.warning("BLE scanner error: %s; retrying in %.1fs", str(e), backoff)
+                else:
+                    # After that, only log detailed exception at DEBUG to avoid log-spam
+                    logger.debug("BLE scanner error (suppressed to DEBUG); retrying in %.1fs", backoff, exc_info=True)
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2.0, 30.0)
                 continue
@@ -235,4 +262,6 @@ class ProximityMonitor:
         # Update scan interval from config
         self._scan_interval = max(1.0, float(getattr(self._config, "scan_interval_sec", self._scan_interval)))
         logger.info("Monitor config updated: device=%s threshold=%s dBm grace=%ss",
-                    self._config.device_mac, self._config.rssi_threshold, self._config.grace_period_sec)
+                    _redact_mac(self._config.device_mac), self._config.rssi_threshold, self._config.grace_period_sec)
+        logger.debug("Monitor config updated (full): device=%s threshold=%s dBm grace=%ss",
+                     self._config.device_mac, self._config.rssi_threshold, self._config.grace_period_sec)

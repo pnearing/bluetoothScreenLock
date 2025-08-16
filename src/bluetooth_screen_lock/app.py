@@ -25,6 +25,21 @@ from .settings import SettingsWindow, SettingsResult
 logger = logging.getLogger(__name__)
 
 
+def _redact_mac(mac: Optional[str]) -> str:
+    """Return a partially redacted MAC for INFO logs, e.g., AA:BB:..:..:EE:FF.
+    Falls back to <redacted> if the input is malformed; <none> for empty.
+    """
+    try:
+        if not mac:
+            return "<none>"
+        s = "".join(ch for ch in str(mac) if ch.isalnum()).upper()
+        if len(s) >= 12:
+            return f"{s[0:2]}:{s[2:4]}:..:..:{s[-4:-2]}:{s[-2:]}"
+        return "<redacted>"
+    except Exception:
+        return "<redacted>"
+
+
 class App:
     def __init__(self) -> None:
         logger.debug("Initializing App")
@@ -146,7 +161,9 @@ class App:
         def start_monitor() -> None:
             assert self._monitor is not None
             logger.info("Starting proximity monitor for %s (threshold=%s dBm, grace=%ss)",
-                        self._cfg.device_mac, self._cfg.rssi_threshold, self._cfg.grace_period_sec)
+                        _redact_mac(self._cfg.device_mac), self._cfg.rssi_threshold, self._cfg.grace_period_sec)
+            logger.debug("Starting proximity monitor for device=%s (threshold=%s dBm, grace=%ss)",
+                         self._cfg.device_mac, self._cfg.rssi_threshold, self._cfg.grace_period_sec)
             self._monitor.start()
         self._call_soon_threadsafe(start_monitor)
 
@@ -267,6 +284,15 @@ class App:
                 near_display = "<unparsed>"
             logger.info(
                 "Settings saved: device=%s name=%s rssi=%s grace=%s, near_command_prog=%s, near_shell=%s",
+                _redact_mac(result.device_mac),
+                result.device_name,
+                result.rssi_threshold,
+                result.grace_period_sec,
+                near_display,
+                bool(getattr(result, 'near_shell', False)),
+            )
+            logger.debug(
+                "Settings saved (full): device=%s name=%s rssi=%s grace=%s, near_command_prog=%s, near_shell=%s",
                 result.device_mac,
                 result.device_name,
                 result.rssi_threshold,
