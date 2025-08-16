@@ -181,3 +181,4 @@ debian/*/substvars
 debian/*/tmp/
 debian/bluetooth-screen-lock
 
+.vscode
