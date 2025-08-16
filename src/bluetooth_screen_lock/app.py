@@ -64,6 +64,7 @@ class App:
             return
         mon_cfg = MonitorConfig(
             device_mac=self._cfg.device_mac,
+            device_name=self._cfg.device_name,
             rssi_threshold=self._cfg.rssi_threshold,
             grace_period_sec=self._cfg.grace_period_sec,
             hysteresis_db=getattr(self._cfg, 'hysteresis_db', 5),
@@ -220,6 +221,7 @@ class App:
             if self._monitor and result.device_mac:
                 mon_cfg = MonitorConfig(
                     device_mac=result.device_mac,
+                    device_name=result.device_name,
                     rssi_threshold=result.rssi_threshold,
                     grace_period_sec=result.grace_period_sec,
                     hysteresis_db=int(getattr(result, 'hysteresis_db', getattr(self._cfg, 'hysteresis_db', 5))),

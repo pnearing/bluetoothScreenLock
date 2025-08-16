@@ -36,8 +36,18 @@ pip install -r requirements.txt
 
 ## Run
 
+You can run the app either as a Python module (recommended for development) or via the installed launcher script.
+
+- Module (dev):
+
 ```bash
-python3 run.py
+python3 -m bluetooth_screen_lock
+```
+
+- Installed launcher (after packaging/install):
+
+```bash
+/usr/bin/bluetooth-screen-lock
 ```
 
 You should see a tray icon (wireless icon). Open Settings to:
@@ -45,6 +55,24 @@ You should see a tray icon (wireless icon). Open Settings to:
 - Set RSSI threshold (e.g., -75 dBm) and grace period (seconds).
 
 The tray menu shows live RSSI while monitoring. When RSSI stays below the threshold or the device isn’t seen for the grace period, the app locks the session.
+
+## Autostart and startup delay
+
+- Enable/disable autostart from Settings. This manages `~/.config/autostart/bluetooth-screen-lock.desktop` for your user.
+- You can configure an optional "Start delay" to defer launching after login (useful to let the desktop fully initialize). The desktop entry's `Exec` command is wrapped to honor this delay.
+
+## Near-action command
+
+- Optional "Near command" runs when your device transitions from away to near (after having been away at least once). Leave blank to disable.
+
+## Version
+
+The package exposes a unified version string:
+
+```python
+from bluetooth_screen_lock import __version__
+print(__version__)
+```
 
 ## Notes/Troubleshooting
 - Ensure Bluetooth is powered on: `bluetoothctl power on`.
@@ -57,6 +85,11 @@ User config is stored at `~/.config/bluetooth-screen-lock/config.yaml` with keys
 - `device_mac`, `device_name`
 - `rssi_threshold` (default -75)
 - `grace_period_sec` (default 8)
+- `autostart` (default false)
+- `start_delay_sec` (default 0)
+- `near_command` (default null)
+- `hysteresis_db` (default 5)
+- `stale_after_sec` (default 6)
 
 ## Roadmap
 - Optional systemd user service to autostart on login.

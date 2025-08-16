@@ -344,9 +344,21 @@ class SettingsWindow(Gtk.Window):
                         try:
                             scanner = BleakScanner()
 
+                            # Allow fallback to name substring if MACs rotate
+                            target_mac = (mac or "").upper()
+                            name_sub = (self._selected_name or "").strip().lower()
+
                             def on_detect(device, advertisement_data):
                                 try:
-                                    if (device.address or "").upper() != mac.upper():
+                                    dev_addr = (getattr(device, "address", "") or "").upper()
+                                    dev_name = (getattr(device, "name", "") or "").strip()
+
+                                    matched = False
+                                    if target_mac:
+                                        matched = (dev_addr == target_mac)
+                                    if not matched and name_sub:
+                                        matched = (name_sub in dev_name.lower()) if dev_name else False
+                                    if not matched:
                                         return
                                     rssi_val = getattr(advertisement_data, "rssi", None)
                                     if rssi_val is None:

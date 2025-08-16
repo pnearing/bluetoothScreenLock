@@ -14,6 +14,7 @@ class MonitorConfig:
     device_mac: Optional[str]
     rssi_threshold: int  # dBm
     grace_period_sec: int
+    device_name: Optional[str] = None
     hysteresis_db: int = 5
     stale_after_sec: int = 6
 
@@ -53,7 +54,7 @@ class ProximityMonitor:
         )
 
     async def _scan_loop(self) -> None:
-        logger.info("BLE scan loop starting for %s", self._config.device_mac)
+        logger.info("BLE scan loop starting for %s (name~=%s)", self._config.device_mac, self._config.device_name)
 
         # Outer retry loop to handle adapter off / intermittent BlueZ errors gracefully
         backoff = 1.0
@@ -65,16 +66,26 @@ class ProximityMonitor:
                 # Use detection callback to capture RSSI from advertisements
                 def on_detect(device, advertisement_data):
                     try:
-                        if not self._config.device_mac:
-                            return
-                        if (device.address or "").upper() == self._config.device_mac.upper():
+                        target_mac = (self._config.device_mac or "").upper()
+                        name_sub = (self._config.device_name or "").strip().lower()
+                        dev_addr = (getattr(device, "address", "") or "").upper()
+                        dev_name = (getattr(device, "name", "") or "").strip()
+
+                        matched = False
+                        if target_mac:
+                            matched = (dev_addr == target_mac)
+                        if not matched and name_sub:
+                            # Fallback: name substring (case-insensitive)
+                            matched = (name_sub in dev_name.lower()) if dev_name else False
+
+                        if matched:
                             self._last_seen_ts = time.time()
                             # Prefer RSSI from advertisement data; fallback to device.rssi if present
                             rssi_val = getattr(advertisement_data, "rssi", None)
                             if rssi_val is None:
                                 rssi_val = getattr(device, "rssi", None)
                             self._last_rssi = rssi_val
-                            logger.debug("Detected %s RSSI=%s dBm", device.address, rssi_val)
+                            logger.debug("Detected %s (%s) RSSI=%s dBm", dev_addr, dev_name or "", rssi_val)
                     except Exception:
                         logger.exception("Detection callback error")
 
