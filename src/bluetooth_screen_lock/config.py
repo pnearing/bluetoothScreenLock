@@ -11,6 +11,7 @@ import logging
 import stat
 from dataclasses import dataclass, asdict
 from typing import Optional
+from .file_ops import open_dir_nofollow, read_text_in_dir, write_replace_text_in_dir
 
 
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", "bluetooth-screen-lock")
@@ -85,22 +86,7 @@ def ensure_config_dir() -> None:
     os.chmod(CONFIG_DIR, 0o700)
 
 
-def _safe_open_nofollow(path: str, mode: int = 0o600):
-    """Open a file securely for writing without following symlinks.
-
-    Returns a raw file descriptor opened with O_NOFOLLOW when available and
-    verifies the target is not a symlink as a defense-in-depth check.
-    """
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
-    fd = os.open(path, flags, mode)
-    # Paranoid double-check: ensure we didn't open a symlink
-    st = os.fstat(fd)
-    if stat.S_ISLNK(st.st_mode):
-        os.close(fd)
-        raise RuntimeError(f"Refusing to write symlink: {path}")
-    return fd
+# File IO is provided by file_ops for dirfd-anchored, symlink-safe operations.
 
 
 def load_config() -> Config:
@@ -114,13 +100,17 @@ def load_config() -> Config:
         save_config(DEFAULT_CONFIG)
         return DEFAULT_CONFIG
     try:
-        # Harden permissions of existing file before reading
+        # Harden permissions of existing file before reading (best-effort)
         try:
             os.chmod(CONFIG_PATH, 0o600)
         except Exception:
             logger.debug("Could not chmod existing config file to 0600", exc_info=True)
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
+        dirfd = open_dir_nofollow(CONFIG_DIR)
+        try:
+            content = read_text_in_dir(dirfd, os.path.basename(CONFIG_PATH))
+        finally:
+            os.close(dirfd)
+        data = yaml.safe_load(content or "") or {}
         cfg = Config(**{**asdict(DEFAULT_CONFIG), **data})
         # Safety clamp: prevent excessively small scan interval
         try:
@@ -146,52 +136,25 @@ def load_config() -> Config:
 def save_config(config: Config) -> None:
     """Persist configuration atomically with restrictive permissions.
 
-    Implementation details:
-    - Write to a temp file in the same directory with 0600 perms (no symlink follow).
-    - Flush and fsync the temp file for durability.
-    - Atomically replace the destination with os.replace().
-    - Fsync the directory to persist the rename.
+    Uses file_ops to write via a safe temp file and atomic replace anchored
+    to the config directory's dirfd. Ensures destination mode is 0600 and
+    fsyncs the directory entry after replacement.
     """
     ensure_config_dir()
-
-    def _atomic_write_yaml(final_path: str, data: dict) -> None:
-        dir_path = os.path.dirname(final_path)
-        # Create a unique temp file next to the destination, never following symlinks
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-        if hasattr(os, "O_NOFOLLOW"):
-            flags |= os.O_NOFOLLOW
-        tmp_path = os.path.join(dir_path, ".config.yaml.tmp-{}".format(os.getpid()))
-        fd = None
+    content = yaml.safe_dump(asdict(config), sort_keys=False)
+    dirfd = open_dir_nofollow(CONFIG_DIR)
+    try:
+        write_replace_text_in_dir(dirfd, os.path.basename(CONFIG_PATH), content)
+        # Ensure final file permissions
         try:
-            fd = os.open(tmp_path, flags, 0o600)
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                fd = None  # ownership transferred to file object
-                yaml.safe_dump(data, f, sort_keys=False)
-                f.flush()
-                os.fsync(f.fileno())
-            # Replace atomically
-            os.replace(tmp_path, final_path)
-            # Ensure permissions on final path (in case pre-existed with different perms)
-            os.chmod(final_path, 0o600)
-            # Fsync directory entry metadata
-            dirfd = os.open(dir_path, os.O_DIRECTORY)
-            try:
-                os.fsync(dirfd)
-            finally:
-                os.close(dirfd)
+            os.chmod(CONFIG_PATH, 0o600)
         except Exception:
-            # Best-effort cleanup of temp file
-            try:
-                if fd is not None:
-                    os.close(fd)
-            except Exception:
-                pass
-            try:
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-            except Exception:
-                pass
-            raise
-
-    _atomic_write_yaml(CONFIG_PATH, asdict(config))
+            logger.debug("Could not chmod config file to 0600", exc_info=True)
+        # Fsync the directory metadata to persist the rename
+        try:
+            os.fsync(dirfd)
+        except Exception:
+            logger.debug("Directory fsync failed after config write", exc_info=True)
+    finally:
+        os.close(dirfd)
     logger.debug("Config saved to %s (atomic)", CONFIG_PATH)
