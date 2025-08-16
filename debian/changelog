@@ -1,3 +1,11 @@
+bluetooth-screen-lock (0.1.6-1) unstable; urgency=medium
+
+  [ Peter Nearing ]
+  * Add "Scan interval (sec)" setting with tooltip in GTK Settings window.
+  * Plumb scan_interval_sec through config and apply immediately to monitor.
+
+ -- Peter Nearing <me@peternearing.ca>  Sat, 16 Aug 2025 10:32:05 -0400
+
 bluetooth-screen-lock (0.1.5-1) unstable; urgency=medium
 
   [ Peter Nearing ]
