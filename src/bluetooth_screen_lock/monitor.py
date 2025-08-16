@@ -17,6 +17,8 @@ class MonitorConfig:
     device_name: Optional[str] = None
     hysteresis_db: int = 5
     stale_after_sec: int = 6
+    unseen_grace_sec: int = 8
+    scan_interval_sec: float = 2.0
 
 
 class ProximityMonitor:
@@ -33,13 +35,12 @@ class ProximityMonitor:
         on_away: Callable[[], None],
         on_near: Optional[Callable[[int], None]] = None,
         on_rssi: Optional[Callable[[Optional[int]], None]] = None,
-        scan_interval: float = 2.0,
     ) -> None:
         self._config = config
         self._on_away = on_away
         self._on_near = on_near
         self._on_rssi = on_rssi
-        self._scan_interval = scan_interval
+        self._scan_interval = float(getattr(self._config, "scan_interval_sec", 2.0))
 
         self._task: Optional[asyncio.Task] = None
         self._running = False
@@ -155,9 +156,12 @@ class ProximityMonitor:
                                         away = True
                             else:
                                 # not currently seen; fallback on not-seen duration
-                                if since_seen >= self._config.grace_period_sec:
-                                    logger.info("Away condition met: device unseen for %.1fs >= %ss",
-                                                since_seen, self._config.grace_period_sec)
+                                unseen_required = float(self._config.stale_after_sec) + float(getattr(self._config, "unseen_grace_sec", self._config.grace_period_sec))
+                                if since_seen >= unseen_required:
+                                    logger.info(
+                                        "Away condition met: device unseen for %.1fs >= stale(%ss)+unseen_grace(%ss)",
+                                        since_seen, self._config.stale_after_sec, getattr(self._config, "unseen_grace_sec", self._config.grace_period_sec)
+                                    )
                                     away = True
 
                         if away:
@@ -169,6 +173,8 @@ class ProximityMonitor:
                             self._below_since_ts = None
                             await asyncio.sleep(self._config.grace_period_sec)
 
+                        # Refresh scan interval in case config changed
+                        self._scan_interval = float(getattr(self._config, "scan_interval_sec", self._scan_interval))
                         await asyncio.sleep(self._scan_interval)
                 finally:
                     logger.debug("Stopping BLE scanner")
@@ -209,5 +215,7 @@ class ProximityMonitor:
         self._last_seen_ts = 0.0
         self._last_rssi = None
         self._below_since_ts = None
+        # Update scan interval from config
+        self._scan_interval = float(getattr(self._config, "scan_interval_sec", self._scan_interval))
         logger.info("Monitor config updated: device=%s threshold=%s dBm grace=%ss",
                     self._config.device_mac, self._config.rssi_threshold, self._config.grace_period_sec)

@@ -69,6 +69,8 @@ class App:
             grace_period_sec=self._cfg.grace_period_sec,
             hysteresis_db=getattr(self._cfg, 'hysteresis_db', 5),
             stale_after_sec=getattr(self._cfg, 'stale_after_sec', 6),
+            unseen_grace_sec=getattr(self._cfg, 'unseen_grace_sec', self._cfg.grace_period_sec),
+            scan_interval_sec=float(getattr(self._cfg, 'scan_interval_sec', 2.0)),
         )
         def on_near(rssi: int) -> None:
             try:
@@ -226,6 +228,8 @@ class App:
                     grace_period_sec=result.grace_period_sec,
                     hysteresis_db=int(getattr(result, 'hysteresis_db', getattr(self._cfg, 'hysteresis_db', 5))),
                     stale_after_sec=int(getattr(result, 'stale_after_sec', getattr(self._cfg, 'stale_after_sec', 6))),
+                    unseen_grace_sec=int(getattr(self._cfg, 'unseen_grace_sec', result.grace_period_sec)),
+                    scan_interval_sec=float(getattr(self._cfg, 'scan_interval_sec', 2.0)),
                 )
                 self._monitor.update_config(mon_cfg)
             elif result.device_mac and not self._monitor:
