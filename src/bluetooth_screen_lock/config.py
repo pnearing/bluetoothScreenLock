@@ -81,6 +81,15 @@ def load_config() -> Config:
             cfg.scan_interval_sec = max(1.0, float(getattr(cfg, 'scan_interval_sec', 2.0)))
         except Exception:
             cfg.scan_interval_sec = 2.0
+        # Clamp key values to sane ranges
+        try:
+            cfg.rssi_threshold = max(-120, min(-20, int(getattr(cfg, 'rssi_threshold', -75))))
+        except Exception:
+            cfg.rssi_threshold = -75
+        try:
+            cfg.grace_period_sec = max(0, min(600, int(getattr(cfg, 'grace_period_sec', 15))))
+        except Exception:
+            cfg.grace_period_sec = 15
         logger.debug("Config loaded from %s", CONFIG_PATH)
         return cfg
     except Exception:

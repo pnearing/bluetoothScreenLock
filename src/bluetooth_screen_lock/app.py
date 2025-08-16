@@ -300,10 +300,22 @@ class App:
                 near_display,
                 bool(getattr(result, 'near_shell', False)),
             )
+            # Clamp key values to sane ranges before persisting
+            clamped_rssi = -75
+            try:
+                clamped_rssi = max(-120, min(-20, int(result.rssi_threshold)))
+            except Exception:
+                pass
+            clamped_grace = 15
+            try:
+                clamped_grace = max(0, min(600, int(result.grace_period_sec)))
+            except Exception:
+                pass
+
             self._cfg.device_mac = result.device_mac
             self._cfg.device_name = result.device_name
-            self._cfg.rssi_threshold = result.rssi_threshold
-            self._cfg.grace_period_sec = result.grace_period_sec
+            self._cfg.rssi_threshold = clamped_rssi
+            self._cfg.grace_period_sec = clamped_grace
             self._cfg.near_command = getattr(result, 'near_command', None)
             self._cfg.near_shell = bool(getattr(result, 'near_shell', getattr(self._cfg, 'near_shell', False)))
             self._cfg.hysteresis_db = int(getattr(result, 'hysteresis_db', getattr(self._cfg, 'hysteresis_db', 5)))
@@ -327,11 +339,11 @@ class App:
                 mon_cfg = MonitorConfig(
                     device_mac=result.device_mac,
                     device_name=result.device_name,
-                    rssi_threshold=result.rssi_threshold,
-                    grace_period_sec=result.grace_period_sec,
+                    rssi_threshold=clamped_rssi,
+                    grace_period_sec=clamped_grace,
                     hysteresis_db=int(getattr(result, 'hysteresis_db', getattr(self._cfg, 'hysteresis_db', 5))),
                     stale_after_sec=int(getattr(result, 'stale_after_sec', getattr(self._cfg, 'stale_after_sec', 6))),
-                    unseen_grace_sec=int(getattr(self._cfg, 'unseen_grace_sec', result.grace_period_sec)),
+                    unseen_grace_sec=int(getattr(self._cfg, 'unseen_grace_sec', clamped_grace)),
                     scan_interval_sec=max(1.0, float(getattr(self._cfg, 'scan_interval_sec', 2.0))),
                     near_consecutive_scans=int(getattr(result, 'near_consecutive_scans', getattr(self._cfg, 'near_consecutive_scans', 2))),
                 )
