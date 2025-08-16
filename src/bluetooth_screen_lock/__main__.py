@@ -13,6 +13,9 @@ import sys
 
 from .app import App
 
+
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
 def _setup_logging(level: str | int) -> None:
     """Configure logging so DEBUG/INFO go to stdout and WARNING+ to stderr.
 
@@ -70,7 +73,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     # Determine logging level: --debug overrides LOG_LEVEL, else use env with INFO default
-    level_name = "DEBUG" if args.debug else os.getenv("LOG_LEVEL", "INFO").upper()
+    level_name = "DEBUG" if args.debug else LOG_LEVEL
+    if level_name not in logging._nameToLevel:
+        print(f"Invalid log level: {level_name}, defaulting to INFO", file=sys.stderr)
+        level_name = "INFO"
     _setup_logging(level_name)
     app = App()
     app.run()
