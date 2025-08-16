@@ -15,8 +15,8 @@ requires-python = ">=3.10"
 # Keep runtime deps minimal; distro packaging (Debian) will map these to system packages
 # PyGObject (gi) is provided by the OS and intentionally not listed here.
 dependencies = [
-  "bleak>=0.22.0",
-  "PyYAML>=6.0",
+  "bleak>=0.22.3",
+  "PyYAML>=6.0.2",
 ]
 keywords = ["bluetooth", "screen", "lock", "gnome", "gtk", "tray"]
 classifiers = [
