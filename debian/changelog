@@ -1,3 +1,13 @@
+bluetooth-screen-lock (0.1.3-1) unstable; urgency=medium
+
+  [ Peter Nearing ]
+  * Switch launcher to `python3 -m bluetooth_screen_lock` and add __main__.py.
+  * Use set -eu and safe PYTHONPATH quoting in launcher script.
+  * Add unified __version__ exported from the package.
+  * Autostart fallback prefers module execution over run.py.
+
+ -- Peter Nearing <me@peternearing.ca>  Fri, 15 Aug 2025 21:09:06 -0400
+
 bluetooth-screen-lock (0.1.2-2) unstable; urgency=medium
 
   [ Peter Nearing ]
