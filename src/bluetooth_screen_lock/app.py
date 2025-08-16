@@ -251,9 +251,10 @@ class App:
                     if not os.path.exists(exec_cmd):
                         # Fall back to running the module with PYTHONPATH pointing to project dir
                         project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+                        src_dir = os.path.join(project_dir, "src")
                         # Use sh -c so we can set PYTHONPATH then exec the module
                         exec_cmd = (
-                            f"/bin/sh -c 'PYTHONPATH=\"{project_dir}:$PYTHONPATH\" exec python3 -m bluetooth_screen_lock'"
+                            f"/bin/sh -c 'PYTHONPATH=\"{src_dir}:$PYTHONPATH\" exec python3 -m bluetooth_screen_lock'"
                         )
                     exec_path = self._wrap_with_delay(exec_cmd)
                     content = (
