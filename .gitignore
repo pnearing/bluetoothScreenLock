@@ -182,3 +182,4 @@ debian/*/tmp/
 debian/bluetooth-screen-lock
 
 .vscode
+.windsurf

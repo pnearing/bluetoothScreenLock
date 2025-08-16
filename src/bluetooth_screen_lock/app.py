@@ -237,15 +237,14 @@ class App:
             
             
             candidates: list[list[str]] = [
-                # Primary: systemd-logind (GNOME/Wayland)
-                [loginctl_path, "lock-session"],
-                # GNOME screensaver command (X11)
-                [gnome_screensaver_path, "-l"],
-                # GNOME via DBus (alternative)
+                # GNOME via DBus (primary)
                 [dbus_send_path, "--session", "--dest=org.gnome.ScreenSaver", 
                  "/org/gnome/ScreenSaver", "org.gnome.ScreenSaver.Lock"],
+                # GNOME via gdbus (secondary)
                 [gdbus_path, "call", "--session", "--dest", "org.gnome.ScreenSaver", 
                  "--object-path", "/org/gnome/ScreenSaver", "--method", "org.gnome.ScreenSaver.Lock"],
+                # GNOME screensaver command (X11)
+                [gnome_screensaver_path, "-l"],
                 # Desktop-agnostic fallback
                 [xdg_screensaver_path, "lock"],
                 # LightDM
