@@ -84,6 +84,11 @@ class App:
                 "Monitoring" if getattr(self._cfg, "locking_enabled", True) else "Monitoring (lock off)"
             )
         )
+        # Disable "Lock now" if no device is configured to avoid confusion
+        try:
+            self._indicator.set_lock_available(bool(self._cfg.device_mac))
+        except Exception:
+            logger.exception("Failed to update lock availability on startup")
         # Show warning if using name-only matching
         self._update_name_fallback_warning()
         logger.info("App ready: %s", "Idle" if not self._cfg.device_mac else "Monitoring")
@@ -333,6 +338,11 @@ class App:
                 self._apply_autostart(self._cfg.autostart)
             save_config(self._cfg)
             self._indicator.set_status("Monitoring" if result.device_mac else "Idle")
+            # Update tray action availability
+            try:
+                self._indicator.set_lock_available(bool(result.device_mac))
+            except Exception:
+                logger.exception("Failed to update lock availability after settings change")
             # Refresh warning after settings change
             self._update_name_fallback_warning()
             if self._monitor and result.device_mac:

@@ -129,3 +129,18 @@ class TrayIndicator:
         def update() -> None:
             self._lock_toggle.set_active(bool(enabled))
         GLib.idle_add(update)
+
+    def set_lock_available(self, available: bool) -> None:
+        """Enable/disable the "Lock now" item and set a helpful tooltip.
+        Call this with False when no device is configured.
+        """
+        def update() -> None:
+            self._lock_item.set_sensitive(bool(available))
+            tip = None if available else "Configure a device in Settings to enable manual lock."
+            try:
+                # MenuItems don't have set_tooltip_text in all themes; guard call
+                if hasattr(self._lock_item, "set_tooltip_text"):
+                    self._lock_item.set_tooltip_text(tip)
+            except Exception:
+                pass
+        GLib.idle_add(update)

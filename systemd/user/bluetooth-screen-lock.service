@@ -1,0 +1,17 @@
+[Unit]
+Description=Bluetooth Screen Lock
+Documentation=man:bluetooth-screen-lock(1)
+After=graphical-session.target
+
+[Service]
+Type=simple
+# Set a startup delay in seconds if desired; override via a user drop-in:
+#   systemctl --user edit bluetooth-screen-lock.service
+# and add, for example: Environment=START_DELAY=5
+Environment=START_DELAY=0
+ExecStartPre=/bin/sleep ${START_DELAY}
+ExecStart=/usr/bin/bluetooth-screen-lock
+Restart=on-failure
+
+[Install]
+WantedBy=graphical-session.target

@@ -10,3 +10,4 @@ icons/hicolor/128x128/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/128
 icons/hicolor/256x256/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/256x256/apps/
 icons/hicolor/512x512/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/512x512/apps/
 icons/hicolor/1024x1024/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/1024x1024/apps/
+systemd/user/bluetooth-screen-lock.service usr/lib/systemd/user/
