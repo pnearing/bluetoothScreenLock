@@ -247,10 +247,12 @@ class App:
                     # Fallback: generate a minimal desktop entry
                     exec_cmd = os.path.join(os.path.expanduser("~"), ".local", "bin", "bluetooth-screen-lock")
                     if not os.path.exists(exec_cmd):
-                        # fall back to running via python and project path
+                        # Fall back to running the module with PYTHONPATH pointing to project dir
                         project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-                        run_path = os.path.join(project_dir, "run.py")
-                        exec_cmd = f"python3 {run_path}"
+                        # Use sh -c so we can set PYTHONPATH then exec the module
+                        exec_cmd = (
+                            f"/bin/sh -c 'PYTHONPATH=\"{project_dir}:$PYTHONPATH\" exec python3 -m bluetooth_screen_lock'"
+                        )
                     exec_path = self._wrap_with_delay(exec_cmd)
                     content = (
                         "[Desktop Entry]\n"

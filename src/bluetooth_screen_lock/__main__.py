@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
-import sys
-import os
 import logging
+import os
+import sys
 
-# Ensure local src/ is on sys.path
-ROOT = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(ROOT, "src")
-if SRC not in sys.path:
-    sys.path.insert(0, SRC)
+from .app import App
 
-from bluetooth_screen_lock.app import App
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 def _setup_logging() -> None:
-    """Configure logging so DEBUG/INFO go to stdout and WARNING+/ERROR to stderr."""
+    """Configure logging so DEBUG/INFO go to stdout and WARNING+ to stderr."""
     class MaxLevelFilter(logging.Filter):
         def __init__(self, max_level: int) -> None:
             super().__init__()
@@ -22,14 +17,12 @@ def _setup_logging() -> None:
         def filter(self, record: logging.LogRecord) -> bool:  # type: ignore[override]
             return record.levelno <= self.max_level
 
-    # Clear existing handlers to avoid duplicate logs on re-run
     root = logging.getLogger()
     if root.handlers:
         for h in list(root.handlers):
             root.removeHandler(h)
 
     root.setLevel(LOG_LEVEL)
-
     fmt = logging.Formatter(
         fmt="%(asctime)s %(levelname)s [%(name)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
@@ -47,7 +40,6 @@ def _setup_logging() -> None:
     root.addHandler(stdout_handler)
     root.addHandler(stderr_handler)
 
-    # Capture warnings module as logging.WARNING
     logging.captureWarnings(True)
 
 
@@ -56,7 +48,6 @@ def main() -> int:
     app = App()
     app.run()
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
