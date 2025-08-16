@@ -14,6 +14,8 @@ class MonitorConfig:
     device_mac: Optional[str]
     rssi_threshold: int  # dBm
     grace_period_sec: int
+    hysteresis_db: int = 5
+    stale_after_sec: int = 6
 
 
 class ProximityMonitor:
@@ -73,15 +75,28 @@ class ProximityMonitor:
                 now = time.time()
                 rssi = self._last_rssi
 
+                # Invalidate stale RSSI if we haven't seen the device recently
+                since_seen = None
+                if self._last_seen_ts:
+                    since_seen = now - self._last_seen_ts
+                    stale_after = max(float(self._config.stale_after_sec), 1.0)
+                    if since_seen > stale_after:
+                        # Consider RSSI unknown if not seen for a while
+                        rssi = None
+                        self._last_rssi = None
+
                 # Evaluate proximity
                 away = False
                 if self._last_seen_ts == 0:
                     # never seen yet; do nothing until grace period passes without sighting
                     pass
                 else:
-                    since_seen = now - self._last_seen_ts
+                    if since_seen is None:
+                        since_seen = now - self._last_seen_ts
                     if rssi is not None:
-                        if self._on_near:
+                        # Only notify NEAR when above threshold
+                        near_trigger = self._config.rssi_threshold + max(0, int(self._config.hysteresis_db))
+                        if self._on_near and rssi > near_trigger:
                             try:
                                 self._on_near(rssi)
                             except Exception:

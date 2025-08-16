@@ -60,6 +60,8 @@ class App:
             device_mac=self._cfg.device_mac,
             rssi_threshold=self._cfg.rssi_threshold,
             grace_period_sec=self._cfg.grace_period_sec,
+            hysteresis_db=getattr(self._cfg, 'hysteresis_db', 5),
+            stale_after_sec=getattr(self._cfg, 'stale_after_sec', 6),
         )
         def on_near(rssi: int) -> None:
             try:
@@ -130,6 +132,8 @@ class App:
             autostart=self._cfg.autostart,
             start_delay_sec=self._cfg.start_delay_sec,
             near_command=self._cfg.near_command,
+            hysteresis_db=getattr(self._cfg, 'hysteresis_db', 5),
+            stale_after_sec=getattr(self._cfg, 'stale_after_sec', 6),
         )
         win = SettingsWindow(initial)
         win.set_transient_for(None)
@@ -144,7 +148,9 @@ class App:
             self._cfg.device_name = result.device_name
             self._cfg.rssi_threshold = result.rssi_threshold
             self._cfg.grace_period_sec = result.grace_period_sec
-            self._cfg.near_command = result.near_command
+            self._cfg.near_command = getattr(result, 'near_command', None)
+            self._cfg.hysteresis_db = int(getattr(result, 'hysteresis_db', getattr(self._cfg, 'hysteresis_db', 5)))
+            self._cfg.stale_after_sec = int(getattr(result, 'stale_after_sec', getattr(self._cfg, 'stale_after_sec', 6)))
             
             # Handle autostart toggle or delay change
             autostart_changed = (self._cfg.autostart != result.autostart)
@@ -160,6 +166,8 @@ class App:
                     device_mac=result.device_mac,
                     rssi_threshold=result.rssi_threshold,
                     grace_period_sec=result.grace_period_sec,
+                    hysteresis_db=int(getattr(result, 'hysteresis_db', getattr(self._cfg, 'hysteresis_db', 5))),
+                    stale_after_sec=int(getattr(result, 'stale_after_sec', getattr(self._cfg, 'stale_after_sec', 6))),
                 )
                 self._monitor.update_config(mon_cfg)
             elif result.device_mac and not self._monitor:

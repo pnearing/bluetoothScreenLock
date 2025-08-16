@@ -20,6 +20,8 @@ class Config:
     autostart: bool = False
     start_delay_sec: int = 0  # delay app start on login
     near_command: Optional[str] = None  # shell command to run when device comes near
+    hysteresis_db: int = 5  # additional dB above threshold required to consider NEAR (prevents flapping)
+    stale_after_sec: int = 6  # invalidate RSSI if not seen for this many seconds
 
 
 DEFAULT_CONFIG = Config()

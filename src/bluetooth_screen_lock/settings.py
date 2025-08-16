@@ -23,6 +23,8 @@ class SettingsResult:
     autostart: bool
     start_delay_sec: int
     near_command: Optional[str] = None
+    hysteresis_db: int = 5
+    stale_after_sec: int = 6
 
 
 class SettingsWindow(Gtk.Window):
@@ -152,24 +154,56 @@ class SettingsWindow(Gtk.Window):
             self.spn_delay.set_sensitive(_btn.get_active())
         self.chk_autostart.connect("toggled", _toggle_delay)
 
+        # Hysteresis
+        lbl_hyst = Gtk.Label(label="Hysteresis (dB):")
+        lbl_hyst.set_xalign(0)
+        lbl_hyst.set_tooltip_text(
+            "Extra dB above the threshold required to consider the device NEAR.\n"
+            "This reduces flapping near the boundary. Typical: 3–8 dB."
+        )
+        grid.attach(lbl_hyst, 0, 6, 2, 1)
+
+        adjustment_hyst = Gtk.Adjustment(value=max(0, int(getattr(initial, 'hysteresis_db', 5))), lower=0, upper=20, step_increment=1)
+        self.spn_hyst = Gtk.SpinButton()
+        self.spn_hyst.set_adjustment(adjustment_hyst)
+        self.spn_hyst.set_digits(0)
+        self.spn_hyst.set_tooltip_text("Extra dB to require for 'near'. 0 disables hysteresis.")
+        grid.attach(self.spn_hyst, 2, 6, 2, 1)
+
+        # Stale RSSI timeout
+        lbl_stale = Gtk.Label(label="Stale RSSI timeout (sec):")
+        lbl_stale.set_xalign(0)
+        lbl_stale.set_tooltip_text(
+            "If the device isn't detected for this many seconds, treat RSSI as unknown.\n"
+            "Prevents stale high RSSI from blocking 'away'."
+        )
+        grid.attach(lbl_stale, 0, 7, 2, 1)
+
+        adjustment_stale = Gtk.Adjustment(value=max(1, int(getattr(initial, 'stale_after_sec', 6))), lower=1, upper=60, step_increment=1)
+        self.spn_stale = Gtk.SpinButton()
+        self.spn_stale.set_adjustment(adjustment_stale)
+        self.spn_stale.set_digits(0)
+        self.spn_stale.set_tooltip_text("Seconds before RSSI is considered stale/unknown.")
+        grid.attach(self.spn_stale, 2, 7, 2, 1)
+
         # Near command
         lbl_near_cmd = Gtk.Label(label="Command when device is near:")
         lbl_near_cmd.set_xalign(0)
         lbl_near_cmd.set_tooltip_text(
-            "Optional shell command to run once when the device becomes NEAR (RSSI above threshold).\n"
+            "Optional shell command to run once when the device becomes NEAR (RSSI above threshold + hysteresis).\n"
             "Examples: 'gnome-screensaver-command -d' or a custom script path."
         )
-        grid.attach(lbl_near_cmd, 0, 6, 2, 1)
+        grid.attach(lbl_near_cmd, 0, 8, 2, 1)
 
         self.txt_near_cmd = Gtk.Entry()
         self.txt_near_cmd.set_placeholder_text("e.g., gnome-screensaver-command -d")
         self.txt_near_cmd.set_hexpand(True)
-        grid.attach(self.txt_near_cmd, 2, 6, 2, 1)
+        grid.attach(self.txt_near_cmd, 2, 8, 2, 1)
 
         # Buttons
         btn_box = Gtk.Box(spacing=10)
         btn_box.set_halign(Gtk.Align.END)
-        grid.attach(btn_box, 0, 7, 4, 1)
+        grid.attach(btn_box, 0, 9, 4, 1)
 
         btn_cancel = Gtk.Button(label="Cancel")
         btn_cancel.connect("clicked", lambda _b: self.close())
@@ -235,6 +269,8 @@ class SettingsWindow(Gtk.Window):
             autostart=bool(self.chk_autostart.get_active()),
             start_delay_sec=int(self.spn_delay.get_value()),
             near_command=(self.txt_near_cmd.get_text() or None),
+            hysteresis_db=int(self.spn_hyst.get_value()),
+            stale_after_sec=int(self.spn_stale.get_value()),
         )
 
     def _on_scan(self, _btn: Gtk.Button) -> None:
