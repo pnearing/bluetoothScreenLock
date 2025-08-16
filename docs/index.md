@@ -24,3 +24,7 @@ Welcome to the documentation for Bluetooth Screen Lock — a GNOME/GTK tray app 
 user-guide
 api/index
 ```
+
+## Logging
+
+Enable the "Write log file" toggle in Settings to write logs to a rotating file in addition to stdout/stderr. See details in the User Guide's Logging section.

@@ -506,6 +506,7 @@ class App:
             re_lock_delay_sec=int(getattr(self._cfg, 're_lock_delay_sec', 0)),
             scan_interval_sec=max(1.0, float(getattr(self._cfg, 'scan_interval_sec', 2.0))),
             near_consecutive_scans=int(getattr(self._cfg, 'near_consecutive_scans', 2)),
+            file_logging_enabled=bool(getattr(self._cfg, 'file_logging_enabled', False)),
         )
         win = SettingsWindow(initial)
         win.set_transient_for(None)
@@ -564,6 +565,7 @@ class App:
             self._cfg.re_lock_delay_sec = int(getattr(result, 're_lock_delay_sec', getattr(self._cfg, 're_lock_delay_sec', 0)))
             self._cfg.scan_interval_sec = max(1.0, float(getattr(result, 'scan_interval_sec', getattr(self._cfg, 'scan_interval_sec', 2.0))))
             self._cfg.near_consecutive_scans = int(getattr(result, 'near_consecutive_scans', getattr(self._cfg, 'near_consecutive_scans', 2)))
+            self._cfg.file_logging_enabled = bool(getattr(result, 'file_logging_enabled', getattr(self._cfg, 'file_logging_enabled', False)))
             
             # Handle autostart toggle or delay change
             autostart_changed = (self._cfg.autostart != result.autostart)

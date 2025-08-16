@@ -66,7 +66,7 @@ class ProximityMonitor:
 
     Attributes:
         _config (MonitorConfig): Runtime configuration.
-        _on_away (Callable[()]): Callback for AWAY state.
+        _on_away (Callable[[], None]): Callback for AWAY state.
         _on_near (Optional[Callable[[Optional[int]], None]]): Callback for NEAR state.
         _on_rssi (Optional[Callable[[Optional[int]], None]]): Callback for live RSSI updates.
     """
@@ -74,7 +74,7 @@ class ProximityMonitor:
     def __init__(
         self,
         config: MonitorConfig,
-        on_away: Callable[()],
+        on_away: Callable[[], None],
         on_near: Optional[Callable[[Optional[int]], None]] = None,
         on_rssi: Optional[Callable[[Optional[int]], None]] = None,
     ) -> None:

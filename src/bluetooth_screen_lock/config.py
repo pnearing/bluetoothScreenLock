@@ -1,8 +1,16 @@
-"""Configuration load/save utilities for Bluetooth Screen Lock.
+"""Configuration utilities for Bluetooth Screen Lock.
 
-This module defines the persisted configuration schema (`Config`) and safe
-helpers to load and save YAML configuration files under
-`~/.config/bluetooth-screen-lock/config.yaml` with restrictive permissions.
+This module defines:
+
+- The persisted configuration schema (`Config`).
+- Safe helpers to load and save YAML configuration files under
+  `~/.config/bluetooth-screen-lock/config.yaml` (0600 perms).
+- XDG state helpers and default log-file path resolution.
+
+Logging file location policy:
+- Prefer `$XDG_STATE_HOME/bluetooth-screen-lock/bluetooth-screen-lock.log`
+  (creating the app subdirectory if the state root exists).
+- If the XDG state root does not exist, use `~/bluetooth-screen-lock.log`.
 """
 
 import os
@@ -16,6 +24,11 @@ from .file_ops import open_dir_nofollow, read_text_in_dir, write_replace_text_in
 
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", "bluetooth-screen-lock")
 CONFIG_PATH = os.path.join(CONFIG_DIR, "config.yaml")
+
+# XDG state directory (root). We do not create the root if it does not exist,
+# to follow the policy "use state if it exists, else fall back to $HOME".
+XDG_STATE_HOME = os.environ.get("XDG_STATE_HOME", os.path.join(os.path.expanduser("~"), ".local", "state"))
+STATE_DIR = os.path.join(XDG_STATE_HOME, "bluetooth-screen-lock")
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +85,15 @@ class Config:
     locking_enabled: bool = True  # globally enable/disable automatic screen locking
     re_lock_delay_sec: int = 0  # suppress auto-locks for N seconds after an unlock/NEAR
     near_consecutive_scans: int = 2  # require N consecutive above-near readings before NEAR
+    # --- File logging options ---
+    # Master toggle to enable writing logs to a rotating file in addition to stdout/stderr
+    file_logging_enabled: bool = False
+    # Optional explicit log file path. If None, we resolve a default path via XDG state
+    # (see `default_log_path`).
+    file_log_path: Optional[str] = None
+    # Rotate at ~5 MiB by default, keep 3 backups
+    file_log_max_bytes: int = 5_242_880
+    file_log_backups: int = 3
 
 
 DEFAULT_CONFIG = Config()
@@ -84,6 +106,27 @@ def ensure_config_dir() -> None:
     if stat.S_ISLNK(st.st_mode):
         raise RuntimeError(f"Refusing to use symlinked config dir: {CONFIG_DIR}")
     os.chmod(CONFIG_DIR, 0o700)
+
+
+def default_log_path() -> str:
+    """Return the default log file path based on XDG state policy.
+
+    Policy:
+    - If the XDG state root directory exists (file-system check), place the log
+      under `$XDG_STATE_HOME/bluetooth-screen-lock/bluetooth-screen-lock.log`.
+      We will ensure the app subdirectory exists with 0700 perms when used.
+    - Otherwise, fall back to a file in the home directory: `~/bluetooth-screen-lock.log`.
+
+    Note: This function does not create any directories/files; callers adding
+    a file handler should ensure parent dir exists as needed.
+    """
+    try:
+        state_root = XDG_STATE_HOME
+        if os.path.isdir(state_root):
+            return os.path.join(STATE_DIR, "bluetooth-screen-lock.log")
+    except Exception:
+        logger.debug("Failed to stat XDG_STATE_HOME; using home fallback", exc_info=True)
+    return os.path.join(os.path.expanduser("~"), "bluetooth-screen-lock.log")
 
 
 # File IO is provided by file_ops for dirfd-anchored, symlink-safe operations.

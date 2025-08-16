@@ -17,6 +17,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 
 from bleak import BleakScanner
+from .config import default_log_path
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ class SettingsResult:
     re_lock_delay_sec: int = 0
     scan_interval_sec: float = 2.0
     near_consecutive_scans: int = 2
+    file_logging_enabled: bool = False
 
 
 class SettingsWindow(Gtk.Window):
@@ -286,9 +288,29 @@ class SettingsWindow(Gtk.Window):
         grid.attach(self.chk_near_shell, 2, 11, 2, 1)
 
         # Buttons
+        # File logging toggle and path hint
+        self.chk_file_logging = Gtk.CheckButton.new_with_label("Write log file")
+        self.chk_file_logging.set_tooltip_text(
+            "Enable writing logs to a rotating file in addition to stdout/stderr."
+        )
+        self.chk_file_logging.set_active(bool(getattr(initial, 'file_logging_enabled', False)))
+        grid.attach(self.chk_file_logging, 0, 15, 2, 1)
+
+        # Path hint label
+        self.lbl_log_path = Gtk.Label()
+        self.lbl_log_path.set_xalign(0)
+        self.lbl_log_path.set_selectable(True)
+        self.lbl_log_path.set_tooltip_text("Default log file location")
+        try:
+            self.lbl_log_path.set_text(f"Log file: {default_log_path()}")
+        except Exception:
+            logger.exception("Failed to compute default log path")
+            self.lbl_log_path.set_text("Log file: <unknown>")
+        grid.attach(self.lbl_log_path, 2, 15, 2, 1)
+
         btn_box = Gtk.Box(spacing=10)
         btn_box.set_halign(Gtk.Align.END)
-        grid.attach(btn_box, 0, 14, 4, 1)
+        grid.attach(btn_box, 0, 16, 4, 1)
 
         btn_cancel = Gtk.Button(label="Cancel")
         btn_cancel.connect("clicked", lambda _b: self.close())
@@ -381,6 +403,7 @@ class SettingsWindow(Gtk.Window):
             re_lock_delay_sec=int(self.spn_relock.get_value()),
             scan_interval_sec=max(1.0, float(self.spn_scan.get_value())),
             near_consecutive_scans=max(1, int(self.spn_near_debounce.get_value())),
+            file_logging_enabled=bool(self.chk_file_logging.get_active()),
         )
 
     def _on_scan(self, _btn: Gtk.Button) -> None:

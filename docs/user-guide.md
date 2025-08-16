@@ -45,6 +45,20 @@ Open the tray menu and click "Settings…".
 
 The current RSSI is shown live to help pick a suitable threshold.
 
+## Logging
+
+- Enable "Write log file" in Settings to additionally write logs to a rotating file.
+- Default log path resolves to:
+  - If `$XDG_STATE_HOME` exists: `$XDG_STATE_HOME/bluetooth-screen-lock/bluetooth-screen-lock.log`
+  - Else: `~/bluetooth-screen-lock.log`
+- Rotation defaults: 5 MiB per file, 3 backups.
+- Stdout contains DEBUG/INFO; stderr contains WARNING and above.
+- When run as a user systemd service, logs are also visible in the journal:
+
+```bash
+journalctl --user -u bluetooth-screen-lock
+```
+
 ## Tray Menu
 
 - Status line shows current state (RSSI, Monitoring, Away, etc.).
@@ -57,5 +71,5 @@ The current RSSI is shown live to help pick a suitable threshold.
 
 - Ensure Bluetooth is on and your device is advertising (screen on) during scan.
 - If your phone rotates MAC addresses, pair it or use name equality as a fallback (less secure).
-- Logs: set `LOG_LEVEL=DEBUG` before launching to get detailed logs.
+- Verbosity: set `LOG_LEVEL=DEBUG` before launching to get detailed logs.
 - If locking fails, the app tries several methods: loginctl, GNOME DBus, xdg-screensaver, etc.

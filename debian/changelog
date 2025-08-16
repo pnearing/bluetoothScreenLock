@@ -1,3 +1,12 @@
+bluetooth-screen-lock (0.1.11-1) unstable; urgency=medium
+
+  [ Peter Nearing ]
+  * Bump upstream version to 0.1.11.
+  * Fix typing for Python 3.13: use Callable[[], None] for on_away.
+  * Prepare release via GitHub Actions workflow.
+
+ -- Peter Nearing <me@peternearing.ca>  Sat, 16 Aug 2025 16:34:58 -0400
+
 bluetooth-screen-lock (0.1.10-1) unstable; urgency=medium
 
   [ Peter Nearing ]

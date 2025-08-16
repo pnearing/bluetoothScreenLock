@@ -77,6 +77,16 @@ Notes:
 - Enable/disable autostart from Settings. This manages `~/.config/autostart/bluetooth-screen-lock.desktop` for your user.
 - You can configure an optional "Start delay" to defer launching after login (useful to let the desktop fully initialize). The desktop entry's `Exec` command is wrapped to honor this delay.
 
+## Logging
+
+- Enable "Write log file" in Settings to write logs to a rotating file in addition to stdout/stderr.
+- Default path:
+  - If `$XDG_STATE_HOME` exists: `$XDG_STATE_HOME/bluetooth-screen-lock/bluetooth-screen-lock.log`
+  - Otherwise: `~/bluetooth-screen-lock.log`
+- Rotation defaults: 5 MiB per file, 3 backups.
+- Stdout shows DEBUG/INFO; stderr shows WARNING+.
+- When run as a user systemd service, logs are also available via the journal (`journalctl --user -u bluetooth-screen-lock`).
+
 ## Near-action command
 
 - Optional "Near command" runs when your device transitions from away to near (after having been away at least once). Leave blank to disable.
