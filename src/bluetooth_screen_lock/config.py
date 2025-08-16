@@ -59,6 +59,11 @@ def load_config() -> Config:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         cfg = Config(**{**asdict(DEFAULT_CONFIG), **data})
+        # Safety clamp: prevent excessively small scan interval
+        try:
+            cfg.scan_interval_sec = max(1.0, float(getattr(cfg, 'scan_interval_sec', 2.0)))
+        except Exception:
+            cfg.scan_interval_sec = 2.0
         logger.debug("Config loaded from %s", CONFIG_PATH)
         return cfg
     except Exception:

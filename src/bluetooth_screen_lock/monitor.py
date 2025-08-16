@@ -40,7 +40,7 @@ class ProximityMonitor:
         self._on_away = on_away
         self._on_near = on_near
         self._on_rssi = on_rssi
-        self._scan_interval = float(getattr(self._config, "scan_interval_sec", 2.0))
+        self._scan_interval = max(1.0, float(getattr(self._config, "scan_interval_sec", 2.0)))
 
         self._task: Optional[asyncio.Task] = None
         self._running = False
@@ -175,7 +175,7 @@ class ProximityMonitor:
                             await asyncio.sleep(self._config.grace_period_sec)
 
                         # Refresh scan interval in case config changed
-                        self._scan_interval = float(getattr(self._config, "scan_interval_sec", self._scan_interval))
+                        self._scan_interval = max(1.0, float(getattr(self._config, "scan_interval_sec", self._scan_interval)))
                         await asyncio.sleep(self._scan_interval)
                 finally:
                     logger.debug("Stopping BLE scanner")
@@ -217,6 +217,6 @@ class ProximityMonitor:
         self._last_rssi = None
         self._below_since_ts = None
         # Update scan interval from config
-        self._scan_interval = float(getattr(self._config, "scan_interval_sec", self._scan_interval))
+        self._scan_interval = max(1.0, float(getattr(self._config, "scan_interval_sec", self._scan_interval)))
         logger.info("Monitor config updated: device=%s threshold=%s dBm grace=%ss",
                     self._config.device_mac, self._config.rssi_threshold, self._config.grace_period_sec)

@@ -215,7 +215,7 @@ class SettingsWindow(Gtk.Window):
         # Note: rows shift down by 1 due to near_shell checkbox added at row 10
         grid.attach(lbl_scan, 0, 11, 2, 1)
 
-        adjustment_scan = Gtk.Adjustment(value=float(getattr(initial, 'scan_interval_sec', 2.0)), lower=0.2, upper=10.0, step_increment=0.1)
+        adjustment_scan = Gtk.Adjustment(value=float(getattr(initial, 'scan_interval_sec', 2.0)), lower=1.0, upper=10.0, step_increment=0.1)
         self.spn_scan = Gtk.SpinButton()
         self.spn_scan.set_adjustment(adjustment_scan)
         self.spn_scan.set_digits(1)
@@ -318,7 +318,7 @@ class SettingsWindow(Gtk.Window):
             hysteresis_db=int(self.spn_hyst.get_value()),
             stale_after_sec=int(self.spn_stale.get_value()),
             re_lock_delay_sec=int(self.spn_relock.get_value()),
-            scan_interval_sec=float(self.spn_scan.get_value()),
+            scan_interval_sec=max(1.0, float(self.spn_scan.get_value())),
         )
 
     def _on_scan(self, _btn: Gtk.Button) -> None:
