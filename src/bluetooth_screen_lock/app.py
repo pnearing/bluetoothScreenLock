@@ -113,12 +113,49 @@ class App:
                 logger.exception("Error running thread-safe call")
         self._loop.call_soon_threadsafe(runner)
 
-    def _lock_screen(self) -> None:
-        # Lock screen via systemd-logind (works on GNOME)
+    def _try_run(self, args: list[str]) -> bool:
+        """Run a command if available and return True on success (exit code 0)."""
         try:
-            logger.warning("Away detected; locking screen via loginctl")
-            subprocess.run(["loginctl", "lock-session"], check=False)
-            GLib.idle_add(lambda: self._indicator.set_status("Locked (away)"))
+            if not args or shutil.which(args[0]) is None:
+                return False
+            res = subprocess.run(args, check=False)
+            return res.returncode == 0
+        except Exception:
+            logger.debug("Lock command failed: %s", " ".join(args) if args else "<none>", exc_info=True)
+            return False
+
+    def _lock_screen(self) -> None:
+        # Lock screen with prioritized fallbacks. GNOME/Wayland: loginctl first.
+        try:
+            logger.warning("Away detected; attempting to lock screen")
+            candidates: list[list[str]] = [
+                # Primary: systemd-logind (GNOME/Wayland)
+                ["loginctl", "lock-session"],
+                # GNOME screensaver command (X11)
+                ["gnome-screensaver-command", "-l"],
+                # GNOME via DBus (alternative)
+                ["dbus-send", "--session", "--dest=org.gnome.ScreenSaver", 
+                 "/org/gnome/ScreenSaver", "org.gnome.ScreenSaver.Lock"],
+                ["gdbus", "call", "--session", "--dest", "org.gnome.ScreenSaver", 
+                 "--object-path", "/org/gnome/ScreenSaver", "--method", "org.gnome.ScreenSaver.Lock"],
+                # Desktop-agnostic fallback
+                ["xdg-screensaver", "lock"],
+                # LightDM
+                ["dm-tool", "lock"],
+                # XScreenSaver
+                ["xscreensaver-command", "-lock"],
+                # systemd: lock all sessions as a last resort
+                ["loginctl", "lock-sessions"],
+            ]
+
+            for cmd in candidates:
+                if self._try_run(cmd):
+                    logger.info("Screen locked via: %s", " ".join(cmd))
+                    GLib.idle_add(lambda: self._indicator.set_status("Locked (away)"))
+                    return
+
+            logger.error("All lock methods failed")
+            GLib.idle_add(lambda: self._indicator.set_status("Lock failed"))
         except Exception:
             logger.exception("Failed to lock screen")
 
