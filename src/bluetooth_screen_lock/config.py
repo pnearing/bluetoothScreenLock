@@ -1,6 +1,7 @@
 import os
 import yaml
 import logging
+import stat
 from dataclasses import dataclass, asdict
 from typing import Optional
 
@@ -33,15 +34,30 @@ DEFAULT_CONFIG = Config()
 
 
 def ensure_config_dir() -> None:
-    # Ensure directory exists with restrictive permissions
+    # Ensure directory exists with restrictive permissions and is not a symlink
     os.makedirs(CONFIG_DIR, mode=0o700, exist_ok=True)
-    try:
-        st = os.stat(CONFIG_DIR)
-        # If existing perms are more permissive, tighten them
-        if (st.st_mode & 0o777) != 0o700:
-            os.chmod(CONFIG_DIR, 0o700)
-    except Exception:
-        logger.debug("Could not verify/chmod config dir perms", exc_info=True)
+    st = os.lstat(CONFIG_DIR)
+    if stat.S_ISLNK(st.st_mode):
+        raise RuntimeError(f"Refusing to use symlinked config dir: {CONFIG_DIR}")
+    os.chmod(CONFIG_DIR, 0o700)
+
+
+def _safe_open_nofollow(path: str, mode: int = 0o600):
+    """Open a file for writing without following symlinks.
+
+    Returns a raw file descriptor opened with O_NOFOLLOW when available and
+    verifies the target is not a symlink as a defense-in-depth check.
+    """
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(path, flags, mode)
+    # Paranoid double-check: ensure we didn't open a symlink
+    st = os.fstat(fd)
+    if stat.S_ISLNK(st.st_mode):
+        os.close(fd)
+        raise RuntimeError(f"Refusing to write symlink: {path}")
+    return fd
 
 
 def load_config() -> Config:
@@ -73,16 +89,22 @@ def load_config() -> Config:
 
 def save_config(config: Config) -> None:
     ensure_config_dir()
-    # Write with restrictive permissions regardless of umask
-    fd = os.open(CONFIG_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    # Write with restrictive permissions regardless of umask, and do not follow symlinks
+    fd = _safe_open_nofollow(CONFIG_PATH, 0o600)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             yaml.safe_dump(asdict(config), f, sort_keys=False)
-        # In case file pre-existed with looser perms, ensure 0600
+            # Flush and fsync for durability
+            f.flush()
+            os.fsync(f.fileno())
+        # Ensure permissions are correct even if file pre-existed
+        os.chmod(CONFIG_PATH, 0o600)
+        # fsync the directory to persist the entry metadata
+        dirfd = os.open(os.path.dirname(CONFIG_PATH), os.O_DIRECTORY)
         try:
-            os.chmod(CONFIG_PATH, 0o600)
-        except Exception:
-            logger.debug("Could not chmod config file to 0600", exc_info=True)
+            os.fsync(dirfd)
+        finally:
+            os.close(dirfd)
     except Exception:
         # If opening or writing fails, ensure fd is closed
         try:
