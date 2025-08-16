@@ -8,6 +8,7 @@ import subprocess
 import threading
 import logging
 import time
+import stat
 from typing import Optional
 
 import gi
@@ -342,6 +343,10 @@ class App:
         try:
             autostart_dir = os.path.join(os.path.expanduser("~"), ".config", "autostart")
             os.makedirs(autostart_dir, exist_ok=True)
+            # Harden against symlinked autostart directory to avoid clobbering arbitrary paths
+            st = os.lstat(autostart_dir)
+            if stat.S_ISLNK(st.st_mode):
+                raise RuntimeError(f"Refusing to use symlinked autostart dir: {autostart_dir}")
             dst = os.path.join(autostart_dir, "bluetooth-screen-lock.desktop")
 
             if enable:
