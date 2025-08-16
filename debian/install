@@ -1,4 +1,6 @@
 bluetooth-screen-lock.desktop usr/share/applications/
+scripts/bluetooth-screen-lock usr/bin/
+src/ usr/share/bluetooth-screen-lock/
 icons/hicolor/16x16/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/16x16/apps/
 icons/hicolor/24x24/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/24x24/apps/
 icons/hicolor/32x32/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/32x32/apps/
