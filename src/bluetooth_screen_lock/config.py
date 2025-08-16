@@ -33,7 +33,15 @@ DEFAULT_CONFIG = Config()
 
 
 def ensure_config_dir() -> None:
-    os.makedirs(CONFIG_DIR, exist_ok=True)
+    # Ensure directory exists with restrictive permissions
+    os.makedirs(CONFIG_DIR, mode=0o700, exist_ok=True)
+    try:
+        st = os.stat(CONFIG_DIR)
+        # If existing perms are more permissive, tighten them
+        if (st.st_mode & 0o777) != 0o700:
+            os.chmod(CONFIG_DIR, 0o700)
+    except Exception:
+        logger.debug("Could not verify/chmod config dir perms", exc_info=True)
 
 
 def load_config() -> Config:
@@ -43,6 +51,11 @@ def load_config() -> Config:
         save_config(DEFAULT_CONFIG)
         return DEFAULT_CONFIG
     try:
+        # Harden permissions of existing file before reading
+        try:
+            os.chmod(CONFIG_PATH, 0o600)
+        except Exception:
+            logger.debug("Could not chmod existing config file to 0600", exc_info=True)
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         cfg = Config(**{**asdict(DEFAULT_CONFIG), **data})
@@ -55,6 +68,21 @@ def load_config() -> Config:
 
 def save_config(config: Config) -> None:
     ensure_config_dir()
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        yaml.safe_dump(asdict(config), f, sort_keys=False)
+    # Write with restrictive permissions regardless of umask
+    fd = os.open(CONFIG_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            yaml.safe_dump(asdict(config), f, sort_keys=False)
+        # In case file pre-existed with looser perms, ensure 0600
+        try:
+            os.chmod(CONFIG_PATH, 0o600)
+        except Exception:
+            logger.debug("Could not chmod config file to 0600", exc_info=True)
+    except Exception:
+        # If opening or writing fails, ensure fd is closed
+        try:
+            os.close(fd)
+        except Exception:
+            pass
+        raise
     logger.debug("Config saved to %s", CONFIG_PATH)

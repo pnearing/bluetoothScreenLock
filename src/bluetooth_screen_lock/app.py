@@ -3,6 +3,7 @@ import base64
 import os
 import shlex
 import shutil
+import tempfile
 import subprocess
 import threading
 import logging
@@ -318,10 +319,19 @@ class App:
             dst = os.path.join(autostart_dir, "bluetooth-screen-lock.desktop")
 
             if enable:
+                # Refuse to overwrite a symlink to avoid arbitrary file overwrite
+                if os.path.islink(dst):
+                    raise RuntimeError("Refusing to overwrite symlink: " + dst)
                 # Prefer copying existing applications desktop if available for consistency
                 src = os.path.join(os.path.expanduser("~"), ".local", "share", "applications", "bluetooth-screen-lock.desktop")
                 if os.path.exists(src):
-                    shutil.copyfile(src, dst)
+                    # Atomic copy via temp file in target dir
+                    with open(src, "r", encoding="utf-8") as sf, tempfile.NamedTemporaryFile(
+                        "w", encoding="utf-8", dir=autostart_dir, delete=False
+                    ) as tf:
+                        tf.write(sf.read())
+                        tmp = tf.name
+                    os.replace(tmp, dst)
                 else:
                     # Fallback: generate a minimal desktop entry
                     exec_cmd = os.path.join(os.path.expanduser("~"), ".local", "bin", "bluetooth-screen-lock")
@@ -347,8 +357,11 @@ class App:
                         "X-GNOME-Autostart-enabled=true\n"
                         "Hidden=false\n"
                     )
-                    with open(dst, "w", encoding="utf-8") as f:
-                        f.write(content)
+                    # Atomic write via temp file
+                    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=autostart_dir, delete=False) as tf:
+                        tf.write(content)
+                        tmp = tf.name
+                    os.replace(tmp, dst)
                 # Ensure autostart flags and adjust Exec for delay if needed
                 self._ensure_autostart_flags(dst)
                 self._ensure_exec_delay(dst)
@@ -367,6 +380,9 @@ class App:
             # Read, tweak keys, write back (simple line-based edits)
             if not os.path.exists(desktop_path):
                 return
+            # Refuse to write if the path is a symlink
+            if os.path.islink(desktop_path):
+                raise RuntimeError("Refusing to overwrite symlink: " + desktop_path)
             with open(desktop_path, "r", encoding="utf-8") as f:
                 lines = f.read().splitlines()
             def upsert(key: str, val: str) -> None:
@@ -380,8 +396,12 @@ class App:
                     lines.append(prefix + val)
             upsert("X-GNOME-Autostart-enabled", "true")
             upsert("Hidden", "false")
-            with open(desktop_path, "w", encoding="utf-8") as f:
-                f.write("\n".join(lines) + "\n")
+            # Atomic write via temp file in same directory
+            autostart_dir = os.path.dirname(desktop_path)
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=autostart_dir, delete=False) as tf:
+                tf.write("\n".join(lines) + "\n")
+                tmp = tf.name
+            os.replace(tmp, desktop_path)
         except Exception:
             logger.exception("Failed to ensure autostart flags on %s", desktop_path)
 
@@ -390,6 +410,9 @@ class App:
         try:
             if not os.path.exists(desktop_path):
                 return
+            # Refuse to write if the path is a symlink
+            if os.path.islink(desktop_path):
+                raise RuntimeError("Refusing to overwrite symlink: " + desktop_path)
             with open(desktop_path, "r", encoding="utf-8") as f:
                 lines = f.read().splitlines()
             for i, line in enumerate(lines):
@@ -406,8 +429,12 @@ class App:
                     wrapped = self._wrap_with_delay(cmd)
                     lines[i] = "Exec=" + wrapped
                     break
-            with open(desktop_path, "w", encoding="utf-8") as f:
-                f.write("\n".join(lines) + "\n")
+            # Atomic write via temp file in same directory
+            autostart_dir = os.path.dirname(desktop_path)
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=autostart_dir, delete=False) as tf:
+                tf.write("\n".join(lines) + "\n")
+                tmp = tf.name
+            os.replace(tmp, desktop_path)
         except Exception:
             logger.exception("Failed to ensure Exec delay on %s", desktop_path)
 
