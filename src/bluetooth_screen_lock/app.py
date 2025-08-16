@@ -289,7 +289,34 @@ class App:
                 argv = shlex.split(cmd)
                 if not argv:
                     return
-                subprocess.Popen(argv)
+                prog = argv[0]
+                # Security: when not using a shell, refuse bare program names to avoid PATH lookup ambiguity
+                if "/" not in prog:
+                    logger.warning("Refusing to run near_command without a path when near_shell=False (no '/' in argv[0])")
+                    return
+                # Require absolute path
+                if not os.path.isabs(prog):
+                    logger.warning("Refusing to run near_command with non-absolute path when near_shell=False: %s", prog)
+                    return
+                # Refuse symlinks
+                try:
+                    if os.path.islink(prog):
+                        logger.warning("Refusing to run near_command: executable is a symlink: %s", prog)
+                        return
+                except Exception:
+                    logger.debug("Symlink check failed for %s", prog, exc_info=True)
+                    return
+                # Require regular file and executable bit
+                try:
+                    st_mode = os.stat(prog).st_mode
+                    if not stat.S_ISREG(st_mode) or not os.access(prog, os.X_OK):
+                        logger.warning("Refusing to run near_command: not an executable regular file: %s", prog)
+                        return
+                except Exception:
+                    logger.debug("Stat/access check failed for %s", prog, exc_info=True)
+                    return
+                # Safe to execute without PATH search
+                subprocess.Popen(argv, executable=prog)
         except Exception:
             logger.exception("Failed to run near command")
 
