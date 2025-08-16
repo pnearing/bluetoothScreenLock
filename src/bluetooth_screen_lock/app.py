@@ -5,12 +5,13 @@ import shutil
 import subprocess
 import threading
 import logging
+import time
 from typing import Optional
 
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, GLib
+from gi.repository import Gtk, GLib, Gio
 
 from .config import load_config, save_config, Config
 from .monitor import ProximityMonitor, MonitorConfig
@@ -50,7 +51,15 @@ class App:
         # Start disarmed so that if the app launches while the device is already near,
         # we do NOT execute the near command until the device has gone away at least once.
         self._armed: bool = False
+        # Timestamp of the last time the session was unlocked (used for re-lock delay cooldown)
+        self._last_unlock_ts: float = 0.0
         self._ensure_monitor()
+
+        # Listen for unlock signals from the session to implement re-lock delay
+        try:
+            self._init_unlock_monitor()
+        except Exception:
+            logger.exception("Failed to initialize unlock monitor; re-lock delay may not work")
 
         self._indicator.set_status(
             "Idle" if not self._cfg.device_mac else (
@@ -99,6 +108,15 @@ class App:
             self._armed = True
             # Only auto-lock if locking is enabled
             if getattr(self._cfg, "locking_enabled", True):
+                # Enforce re-lock delay after an actual UNLOCK event
+                cooldown = max(0, int(getattr(self._cfg, "re_lock_delay_sec", 0)))
+                if cooldown > 0 and self._last_unlock_ts:
+                    since_unlock = time.time() - self._last_unlock_ts
+                    if since_unlock < cooldown:
+                        remaining = int(cooldown - since_unlock)
+                        logger.info("Re-lock delay active: skipping auto-lock (%ss remaining)", remaining)
+                        self._indicator.set_status(f"Away (cooldown {remaining}s)")
+                        return
                 self._lock_screen()
             else:
                 self._indicator.set_status("Away (lock off)")
@@ -203,6 +221,7 @@ class App:
             near_command=self._cfg.near_command,
             hysteresis_db=getattr(self._cfg, 'hysteresis_db', 5),
             stale_after_sec=getattr(self._cfg, 'stale_after_sec', 6),
+            re_lock_delay_sec=int(getattr(self._cfg, 're_lock_delay_sec', 0)),
         )
         win = SettingsWindow(initial)
         win.set_transient_for(None)
@@ -220,6 +239,7 @@ class App:
             self._cfg.near_command = getattr(result, 'near_command', None)
             self._cfg.hysteresis_db = int(getattr(result, 'hysteresis_db', getattr(self._cfg, 'hysteresis_db', 5)))
             self._cfg.stale_after_sec = int(getattr(result, 'stale_after_sec', getattr(self._cfg, 'stale_after_sec', 6)))
+            self._cfg.re_lock_delay_sec = int(getattr(result, 're_lock_delay_sec', getattr(self._cfg, 're_lock_delay_sec', 0)))
             
             # Handle autostart toggle or delay change
             autostart_changed = (self._cfg.autostart != result.autostart)
@@ -403,3 +423,117 @@ class App:
                 self._loop.call_soon_threadsafe(self._loop.stop)
             if self._loop_thread.is_alive():
                 self._loop_thread.join(timeout=1.0)
+
+    # --- Unlock monitor (GNOME) ---
+    def _init_unlock_monitor(self) -> None:
+        """Subscribe to GNOME ScreenSaver ActiveChanged to detect unlock events.
+        When Active changes to false, the session is unlocked.
+        """
+        try:
+            self._session_bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        except Exception:
+            self._session_bus = None
+            raise
+
+        if not self._session_bus:
+            return
+
+        def _on_screensaver_signal(_conn, _sender_name, _object_path, _interface_name, _signal_name, parameters):
+            try:
+                if _signal_name == "ActiveChanged":
+                    # parameters: (b: active)
+                    active = parameters.get_child_value(0).get_boolean()
+                    if not active:
+                        # Unlocked
+                        self._last_unlock_ts = time.time()
+                        logger.info("Unlock detected via ScreenSaver ActiveChanged")
+            except Exception:
+                logger.exception("Failed handling ScreenSaver signal")
+
+        # Subscribe to org.gnome.ScreenSaver ActiveChanged on the session bus
+        try:
+            self._session_bus.signal_subscribe(
+                sender="org.gnome.ScreenSaver",
+                interface_name="org.gnome.ScreenSaver",
+                member="ActiveChanged",
+                object_path="/org/gnome/ScreenSaver",
+                arg0=None,
+                flags=Gio.DBusSignalFlags.NONE,
+                callback=_on_screensaver_signal,
+            )
+            logger.debug("Subscribed to org.gnome.ScreenSaver ActiveChanged")
+        except Exception:
+            logger.exception("Could not subscribe to ScreenSaver signals")
+
+        # Fallback: org.freedesktop.ScreenSaver ActiveChanged
+        try:
+            self._session_bus.signal_subscribe(
+                sender="org.freedesktop.ScreenSaver",
+                interface_name="org.freedesktop.ScreenSaver",
+                member="ActiveChanged",
+                object_path="/org/freedesktop/ScreenSaver",
+                arg0=None,
+                flags=Gio.DBusSignalFlags.NONE,
+                callback=_on_screensaver_signal,
+            )
+            logger.debug("Subscribed to org.freedesktop.ScreenSaver ActiveChanged")
+        except Exception:
+            logger.exception("Could not subscribe to freedesktop ScreenSaver signals")
+
+        # Fallback: systemd-logind (org.freedesktop.login1) on the SYSTEM bus
+        # Detect unlock via org.freedesktop.login1.Session LockedHint property changes.
+        try:
+            self._system_bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+        except Exception:
+            self._system_bus = None
+            logger.exception("Could not connect to system bus for login1 monitoring")
+            return
+
+        if not self._system_bus:
+            return
+
+        # Resolve this process's session object path via GetSessionByPID
+        try:
+            res = self._system_bus.call_sync(
+                "org.freedesktop.login1",
+                "/org/freedesktop/login1",
+                "org.freedesktop.login1.Manager",
+                "GetSessionByPID",
+                GLib.Variant("(u)", (os.getpid(),)),
+                None,
+                Gio.DBusCallFlags.NONE,
+                -1,
+                None,
+            )
+            session_path = res.unpack()[0]
+        except Exception:
+            session_path = None
+            logger.exception("login1 GetSessionByPID failed; skipping login1 unlock monitoring")
+
+        if session_path:
+            def _on_login1_properties(_conn, _sender, _object_path, _interface, _member, parameters):
+                try:
+                    # parameters: (s a{sv} as)
+                    iface_name, changed, _invalidated = parameters.unpack()
+                    if iface_name == "org.freedesktop.login1.Session":
+                        if "LockedHint" in changed:
+                            locked = changed["LockedHint"].unpack()
+                            if locked is False:
+                                self._last_unlock_ts = time.time()
+                                logger.info("Unlock detected via login1 LockedHint=false")
+                except Exception:
+                    logger.exception("Failed handling login1 PropertiesChanged")
+
+            try:
+                self._system_bus.signal_subscribe(
+                    sender="org.freedesktop.login1",
+                    interface_name="org.freedesktop.DBus.Properties",
+                    member="PropertiesChanged",
+                    object_path=session_path,
+                    arg0=None,
+                    flags=Gio.DBusSignalFlags.NONE,
+                    callback=_on_login1_properties,
+                )
+                logger.debug("Subscribed to login1 PropertiesChanged for session %s", session_path)
+            except Exception:
+                logger.exception("Could not subscribe to login1 PropertiesChanged")

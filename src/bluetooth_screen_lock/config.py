@@ -25,6 +25,7 @@ class Config:
     stale_after_sec: int = 8  # invalidate RSSI if not seen for this many seconds
     scan_interval_sec: float = 2.0  # BLE scan loop interval
     locking_enabled: bool = True  # globally enable/disable automatic screen locking
+    re_lock_delay_sec: int = 0  # suppress auto-locks for N seconds after an unlock/NEAR
 
 
 DEFAULT_CONFIG = Config()

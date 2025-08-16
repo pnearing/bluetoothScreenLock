@@ -25,6 +25,7 @@ class SettingsResult:
     near_command: Optional[str] = None
     hysteresis_db: int = 5
     stale_after_sec: int = 6
+    re_lock_delay_sec: int = 0
 
 
 class SettingsWindow(Gtk.Window):
@@ -186,6 +187,21 @@ class SettingsWindow(Gtk.Window):
         self.spn_stale.set_tooltip_text("Seconds before RSSI is considered stale/unknown.")
         grid.attach(self.spn_stale, 2, 7, 2, 1)
 
+        # Re-lock delay
+        lbl_relock = Gtk.Label(label="Re-lock delay (sec):")
+        lbl_relock.set_xalign(0)
+        lbl_relock.set_tooltip_text(
+            "Do not auto-lock for this many seconds after the device becomes NEAR (e.g., after unlocking)."
+        )
+        grid.attach(lbl_relock, 0, 8, 2, 1)
+
+        adjustment_relock = Gtk.Adjustment(value=max(0, int(getattr(initial, 're_lock_delay_sec', 0))), lower=0, upper=1800, step_increment=1)
+        self.spn_relock = Gtk.SpinButton()
+        self.spn_relock.set_adjustment(adjustment_relock)
+        self.spn_relock.set_digits(0)
+        self.spn_relock.set_tooltip_text("0 disables the cooldown. Typical: 10–120 seconds.")
+        grid.attach(self.spn_relock, 2, 8, 2, 1)
+
         # Near command
         lbl_near_cmd = Gtk.Label(label="Command when device is near:")
         lbl_near_cmd.set_xalign(0)
@@ -193,17 +209,17 @@ class SettingsWindow(Gtk.Window):
             "Optional shell command to run once when the device becomes NEAR (RSSI above threshold + hysteresis).\n"
             "Examples: 'gnome-screensaver-command -d' or a custom script path."
         )
-        grid.attach(lbl_near_cmd, 0, 8, 2, 1)
+        grid.attach(lbl_near_cmd, 0, 9, 2, 1)
 
         self.txt_near_cmd = Gtk.Entry()
         self.txt_near_cmd.set_placeholder_text("e.g., gnome-screensaver-command -d")
         self.txt_near_cmd.set_hexpand(True)
-        grid.attach(self.txt_near_cmd, 2, 8, 2, 1)
+        grid.attach(self.txt_near_cmd, 2, 9, 2, 1)
 
         # Buttons
         btn_box = Gtk.Box(spacing=10)
         btn_box.set_halign(Gtk.Align.END)
-        grid.attach(btn_box, 0, 9, 4, 1)
+        grid.attach(btn_box, 0, 10, 4, 1)
 
         btn_cancel = Gtk.Button(label="Cancel")
         btn_cancel.connect("clicked", lambda _b: self.close())
@@ -271,6 +287,7 @@ class SettingsWindow(Gtk.Window):
             near_command=(self.txt_near_cmd.get_text() or None),
             hysteresis_db=int(self.spn_hyst.get_value()),
             stale_after_sec=int(self.spn_stale.get_value()),
+            re_lock_delay_sec=int(self.spn_relock.get_value()),
         )
 
     def _on_scan(self, _btn: Gtk.Button) -> None:
