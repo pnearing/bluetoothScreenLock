@@ -9,5 +9,4 @@ icons/hicolor/128x128/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/128
 icons/hicolor/256x256/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/256x256/apps/
 icons/hicolor/512x512/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/512x512/apps/
 icons/hicolor/1024x1024/apps/bluetooth-screen-lock.png usr/share/icons/hicolor/1024x1024/apps/
-run.py usr/share/bluetooth-screen-lock/
 src/bluetooth_screen_lock usr/share/bluetooth-screen-lock/src/
