@@ -43,6 +43,8 @@ class ProximityMonitor:
 
         self._last_seen_ts: float = 0.0
         self._last_rssi: Optional[int] = None
+        # Tracks when RSSI first fell below threshold while still being detected
+        self._below_since_ts: Optional[float] = None
         logger.debug(
             "ProximityMonitor created: device=%s threshold=%s dBm grace=%ss interval=%.1fs",
             self._config.device_mac, self._config.rssi_threshold, self._config.grace_period_sec, self._scan_interval
@@ -94,17 +96,34 @@ class ProximityMonitor:
                     if since_seen is None:
                         since_seen = now - self._last_seen_ts
                     if rssi is not None:
-                        # Only notify NEAR when above threshold
+                        # Determine NEAR trigger using hysteresis to reduce flapping
                         near_trigger = self._config.rssi_threshold + max(0, int(self._config.hysteresis_db))
                         if self._on_near and rssi > near_trigger:
                             try:
                                 self._on_near(rssi)
                             except Exception:
                                 logger.exception("on_near callback failed")
-                        if rssi <= self._config.rssi_threshold and since_seen >= self._config.grace_period_sec:
-                            logger.info("Away condition met: RSSI=%s <= %s and unseen for %.1fs >= %ss",
-                                        rssi, self._config.rssi_threshold, since_seen, self._config.grace_period_sec)
-                            away = True
+
+                        # Start or reset the below-threshold timer independent of since_seen
+                        if rssi <= self._config.rssi_threshold:
+                            if self._below_since_ts is None:
+                                self._below_since_ts = now
+                        else:
+                            # If signal is comfortably above threshold + hysteresis, clear timer
+                            if rssi > near_trigger:
+                                self._below_since_ts = None
+
+                        # If RSSI has stayed weak long enough, mark away
+                        if self._below_since_ts is not None:
+                            weak_duration = now - self._below_since_ts
+                            if weak_duration >= float(self._config.grace_period_sec):
+                                logger.info(
+                                    "Away condition met: RSSI stayed <= %s dBm for %.1fs (grace=%ss)",
+                                    self._config.rssi_threshold,
+                                    weak_duration,
+                                    self._config.grace_period_sec,
+                                )
+                                away = True
                     else:
                         # not currently seen; fallback on not-seen duration
                         if since_seen >= self._config.grace_period_sec:
@@ -118,6 +137,7 @@ class ProximityMonitor:
                     except Exception:
                         logger.exception("on_away callback failed")
                     # After triggering away, wait a bit to avoid repeat triggers
+                    self._below_since_ts = None
                     await asyncio.sleep(self._config.grace_period_sec)
 
                 await asyncio.sleep(self._scan_interval)
@@ -149,5 +169,6 @@ class ProximityMonitor:
         # Reset state when config changes
         self._last_seen_ts = 0.0
         self._last_rssi = None
+        self._below_since_ts = None
         logger.info("Monitor config updated: device=%s threshold=%s dBm grace=%ss",
                     self._config.device_mac, self._config.rssi_threshold, self._config.grace_period_sec)
