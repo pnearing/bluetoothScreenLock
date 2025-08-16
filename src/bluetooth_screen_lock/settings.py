@@ -23,6 +23,7 @@ class SettingsResult:
     autostart: bool
     start_delay_sec: int
     near_command: Optional[str] = None
+    near_shell: bool = False
     hysteresis_db: int = 5
     stale_after_sec: int = 6
     re_lock_delay_sec: int = 0
@@ -211,14 +212,15 @@ class SettingsWindow(Gtk.Window):
             "Shorter = more responsive, but higher Bluetooth/CPU activity.\n"
             "Longer = lower overhead, but slower to react."
         )
-        grid.attach(lbl_scan, 0, 10, 2, 1)
+        # Note: rows shift down by 1 due to near_shell checkbox added at row 10
+        grid.attach(lbl_scan, 0, 11, 2, 1)
 
         adjustment_scan = Gtk.Adjustment(value=float(getattr(initial, 'scan_interval_sec', 2.0)), lower=0.2, upper=10.0, step_increment=0.1)
         self.spn_scan = Gtk.SpinButton()
         self.spn_scan.set_adjustment(adjustment_scan)
         self.spn_scan.set_digits(1)
         self.spn_scan.set_tooltip_text("Typical: 1.0–3.0s. Use smaller for faster detection, larger for efficiency.")
-        grid.attach(self.spn_scan, 2, 10, 2, 1)
+        grid.attach(self.spn_scan, 2, 11, 2, 1)
 
         # Near command
         lbl_near_cmd = Gtk.Label(label="Command when device is near:")
@@ -234,10 +236,19 @@ class SettingsWindow(Gtk.Window):
         self.txt_near_cmd.set_hexpand(True)
         grid.attach(self.txt_near_cmd, 2, 9, 2, 1)
 
+        # Near command shell checkbox
+        self.chk_near_shell = Gtk.CheckButton.new_with_label("Run command in shell (advanced)")
+        self.chk_near_shell.set_tooltip_text(
+            "If enabled, executes the command via the system shell. This allows pipes, redirection, etc.,\n"
+            "but is less safe. Only enable if you trust the command and understand the risks."
+        )
+        self.chk_near_shell.set_active(bool(getattr(initial, 'near_shell', False)))
+        grid.attach(self.chk_near_shell, 2, 10, 2, 1)
+
         # Buttons
         btn_box = Gtk.Box(spacing=10)
         btn_box.set_halign(Gtk.Align.END)
-        grid.attach(btn_box, 0, 11, 4, 1)
+        grid.attach(btn_box, 0, 12, 4, 1)
 
         btn_cancel = Gtk.Button(label="Cancel")
         btn_cancel.connect("clicked", lambda _b: self.close())
@@ -303,6 +314,7 @@ class SettingsWindow(Gtk.Window):
             autostart=bool(self.chk_autostart.get_active()),
             start_delay_sec=int(self.spn_delay.get_value()),
             near_command=(self.txt_near_cmd.get_text() or None),
+            near_shell=bool(self.chk_near_shell.get_active()),
             hysteresis_db=int(self.spn_hyst.get_value()),
             stale_after_sec=int(self.spn_stale.get_value()),
             re_lock_delay_sec=int(self.spn_relock.get_value()),

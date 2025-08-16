@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import os
+import shlex
 import shutil
 import subprocess
 import threading
@@ -204,8 +205,15 @@ class App:
             if not cmd:
                 return
             logger.info("Running near command: %s", cmd)
-            # Run in background, do not wait. Use shell to support complex commands.
-            subprocess.Popen(cmd, shell=True)
+            # Run in background, do not wait. Default: no shell. Opt-in via cfg.near_shell=True.
+            use_shell = bool(getattr(self._cfg, "near_shell", False))
+            if use_shell:
+                subprocess.Popen(cmd, shell=True)
+            else:
+                argv = shlex.split(cmd)
+                if not argv:
+                    return
+                subprocess.Popen(argv)
         except Exception:
             logger.exception("Failed to run near command")
 
@@ -219,6 +227,7 @@ class App:
             autostart=self._cfg.autostart,
             start_delay_sec=self._cfg.start_delay_sec,
             near_command=self._cfg.near_command,
+            near_shell=bool(getattr(self._cfg, 'near_shell', False)),
             hysteresis_db=getattr(self._cfg, 'hysteresis_db', 5),
             stale_after_sec=getattr(self._cfg, 'stale_after_sec', 6),
             re_lock_delay_sec=int(getattr(self._cfg, 're_lock_delay_sec', 0)),
@@ -231,13 +240,14 @@ class App:
 
         def on_hide(_w):
             result = win.get_result()
-            logger.info("Settings saved: device=%s name=%s rssi=%s grace=%s, near_command=%s", 
-                        result.device_mac, result.device_name, result.rssi_threshold, result.grace_period_sec, result.near_command)
+            logger.info("Settings saved: device=%s name=%s rssi=%s grace=%s, near_command=%s, near_shell=%s", 
+                        result.device_mac, result.device_name, result.rssi_threshold, result.grace_period_sec, result.near_command, getattr(result, 'near_shell', False))
             self._cfg.device_mac = result.device_mac
             self._cfg.device_name = result.device_name
             self._cfg.rssi_threshold = result.rssi_threshold
             self._cfg.grace_period_sec = result.grace_period_sec
             self._cfg.near_command = getattr(result, 'near_command', None)
+            self._cfg.near_shell = bool(getattr(result, 'near_shell', getattr(self._cfg, 'near_shell', False)))
             self._cfg.hysteresis_db = int(getattr(result, 'hysteresis_db', getattr(self._cfg, 'hysteresis_db', 5)))
             self._cfg.stale_after_sec = int(getattr(result, 'stale_after_sec', getattr(self._cfg, 'stale_after_sec', 6)))
             self._cfg.re_lock_delay_sec = int(getattr(result, 're_lock_delay_sec', getattr(self._cfg, 're_lock_delay_sec', 0)))
