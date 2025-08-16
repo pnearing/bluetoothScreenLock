@@ -28,6 +28,7 @@ class SettingsResult:
     stale_after_sec: int = 6
     re_lock_delay_sec: int = 0
     scan_interval_sec: float = 2.0
+    near_consecutive_scans: int = 2
 
 
 class SettingsWindow(Gtk.Window):
@@ -213,14 +214,33 @@ class SettingsWindow(Gtk.Window):
             "Longer = lower overhead, but slower to react."
         )
         # Note: rows shift down by 1 due to near_shell checkbox added at row 10
-        grid.attach(lbl_scan, 0, 11, 2, 1)
+        # and by 1 more due to near_consecutive_scans added at row 11
+        grid.attach(lbl_scan, 0, 12, 2, 1)
 
         adjustment_scan = Gtk.Adjustment(value=float(getattr(initial, 'scan_interval_sec', 2.0)), lower=1.0, upper=10.0, step_increment=0.1)
         self.spn_scan = Gtk.SpinButton()
         self.spn_scan.set_adjustment(adjustment_scan)
         self.spn_scan.set_digits(1)
         self.spn_scan.set_tooltip_text("Typical: 1.0–3.0s. Use smaller for faster detection, larger for efficiency.")
-        grid.attach(self.spn_scan, 2, 11, 2, 1)
+        grid.attach(self.spn_scan, 2, 12, 2, 1)
+
+        # Near debounce (consecutive scans)
+        lbl_near_debounce = Gtk.Label(label="Near debounce (scans):")
+        lbl_near_debounce.set_xalign(0)
+        lbl_near_debounce.set_tooltip_text(
+            "Require this many consecutive scans above the near trigger (threshold + hysteresis)\n"
+            "before treating the device as NEAR. Mitigates brief spikes/spoofing."
+        )
+        grid.attach(lbl_near_debounce, 0, 11, 2, 1)
+
+        adjustment_near_debounce = Gtk.Adjustment(
+            value=max(1, int(getattr(initial, 'near_consecutive_scans', 2))), lower=1, upper=10, step_increment=1
+        )
+        self.spn_near_debounce = Gtk.SpinButton()
+        self.spn_near_debounce.set_adjustment(adjustment_near_debounce)
+        self.spn_near_debounce.set_digits(0)
+        self.spn_near_debounce.set_tooltip_text("1 = immediate; 2–3 recommended.")
+        grid.attach(self.spn_near_debounce, 2, 11, 2, 1)
 
         # Near command
         lbl_near_cmd = Gtk.Label(label="Command when device is near:")
@@ -248,7 +268,7 @@ class SettingsWindow(Gtk.Window):
         # Buttons
         btn_box = Gtk.Box(spacing=10)
         btn_box.set_halign(Gtk.Align.END)
-        grid.attach(btn_box, 0, 12, 4, 1)
+        grid.attach(btn_box, 0, 13, 4, 1)
 
         btn_cancel = Gtk.Button(label="Cancel")
         btn_cancel.connect("clicked", lambda _b: self.close())
@@ -319,6 +339,7 @@ class SettingsWindow(Gtk.Window):
             stale_after_sec=int(self.spn_stale.get_value()),
             re_lock_delay_sec=int(self.spn_relock.get_value()),
             scan_interval_sec=max(1.0, float(self.spn_scan.get_value())),
+            near_consecutive_scans=max(1, int(self.spn_near_debounce.get_value())),
         )
 
     def _on_scan(self, _btn: Gtk.Button) -> None:

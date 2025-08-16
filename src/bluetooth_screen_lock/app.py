@@ -91,6 +91,7 @@ class App:
             stale_after_sec=getattr(self._cfg, 'stale_after_sec', 6),
             unseen_grace_sec=getattr(self._cfg, 'unseen_grace_sec', self._cfg.grace_period_sec),
             scan_interval_sec=max(1.0, float(getattr(self._cfg, 'scan_interval_sec', 2.0))),
+            near_consecutive_scans=int(getattr(self._cfg, 'near_consecutive_scans', 2)),
         )
         def on_near(rssi: int) -> None:
             try:
@@ -246,6 +247,7 @@ class App:
             stale_after_sec=getattr(self._cfg, 'stale_after_sec', 6),
             re_lock_delay_sec=int(getattr(self._cfg, 're_lock_delay_sec', 0)),
             scan_interval_sec=max(1.0, float(getattr(self._cfg, 'scan_interval_sec', 2.0))),
+            near_consecutive_scans=int(getattr(self._cfg, 'near_consecutive_scans', 2)),
         )
         win = SettingsWindow(initial)
         win.set_transient_for(None)
@@ -282,6 +284,7 @@ class App:
             self._cfg.stale_after_sec = int(getattr(result, 'stale_after_sec', getattr(self._cfg, 'stale_after_sec', 6)))
             self._cfg.re_lock_delay_sec = int(getattr(result, 're_lock_delay_sec', getattr(self._cfg, 're_lock_delay_sec', 0)))
             self._cfg.scan_interval_sec = max(1.0, float(getattr(result, 'scan_interval_sec', getattr(self._cfg, 'scan_interval_sec', 2.0))))
+            self._cfg.near_consecutive_scans = int(getattr(result, 'near_consecutive_scans', getattr(self._cfg, 'near_consecutive_scans', 2)))
             
             # Handle autostart toggle or delay change
             autostart_changed = (self._cfg.autostart != result.autostart)
@@ -304,6 +307,7 @@ class App:
                     stale_after_sec=int(getattr(result, 'stale_after_sec', getattr(self._cfg, 'stale_after_sec', 6))),
                     unseen_grace_sec=int(getattr(self._cfg, 'unseen_grace_sec', result.grace_period_sec)),
                     scan_interval_sec=max(1.0, float(getattr(self._cfg, 'scan_interval_sec', 2.0))),
+                    near_consecutive_scans=int(getattr(result, 'near_consecutive_scans', getattr(self._cfg, 'near_consecutive_scans', 2))),
                 )
                 self._monitor.update_config(mon_cfg)
             elif result.device_mac and not self._monitor:

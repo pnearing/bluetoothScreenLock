@@ -19,6 +19,8 @@ class MonitorConfig:
     stale_after_sec: int = 6
     unseen_grace_sec: int = 8
     scan_interval_sec: float = 2.0
+    # Require N consecutive scans above the near trigger before treating as NEAR
+    near_consecutive_scans: int = 2
 
 
 class ProximityMonitor:
@@ -49,6 +51,8 @@ class ProximityMonitor:
         self._last_rssi: Optional[int] = None
         # Tracks when RSSI first fell below threshold while still being detected
         self._below_since_ts: Optional[float] = None
+        # Count of consecutive scans above near trigger (for debounce)
+        self._near_consec_count: int = 0
         logger.debug(
             "ProximityMonitor created: device=%s threshold=%s dBm grace=%ss interval=%.1fs",
             self._config.device_mac, self._config.rssi_threshold, self._config.grace_period_sec, self._scan_interval
@@ -129,11 +133,20 @@ class ProximityMonitor:
                             if rssi is not None:
                                 # Determine NEAR trigger using hysteresis to reduce flapping
                                 near_trigger = self._config.rssi_threshold + max(0, int(self._config.hysteresis_db))
-                                if self._on_near and rssi > near_trigger:
+                                # Maintain consecutive-above-near counter
+                                if rssi > near_trigger:
+                                    self._near_consec_count += 1
+                                else:
+                                    self._near_consec_count = 0
+                                # Only trigger NEAR after N consecutive qualifying scans
+                                need = max(1, int(getattr(self._config, "near_consecutive_scans", 2)))
+                                if self._on_near and self._near_consec_count >= need:
                                     try:
                                         self._on_near(rssi)
                                     except Exception:
                                         logger.exception("on_near callback failed")
+                                    # Keep the counter capped to avoid overflow; retain state as 'near'
+                                    self._near_consec_count = need
 
                                 # Start or reset the below-threshold timer independent of since_seen
                                 if rssi <= self._config.rssi_threshold:
@@ -157,6 +170,8 @@ class ProximityMonitor:
                                         away = True
                             else:
                                 # not currently seen; fallback on not-seen duration
+                                # Also reset near debounce counter when unseen
+                                self._near_consec_count = 0
                                 unseen_required = float(self._config.stale_after_sec) + float(getattr(self._config, "unseen_grace_sec", self._config.grace_period_sec))
                                 if since_seen >= unseen_required:
                                     logger.info(
@@ -216,6 +231,7 @@ class ProximityMonitor:
         self._last_seen_ts = 0.0
         self._last_rssi = None
         self._below_since_ts = None
+        self._near_consec_count = 0
         # Update scan interval from config
         self._scan_interval = max(1.0, float(getattr(self._config, "scan_interval_sec", self._scan_interval)))
         logger.info("Monitor config updated: device=%s threshold=%s dBm grace=%ss",

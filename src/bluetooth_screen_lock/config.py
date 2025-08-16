@@ -28,6 +28,7 @@ class Config:
     scan_interval_sec: float = 2.0  # BLE scan loop interval
     locking_enabled: bool = True  # globally enable/disable automatic screen locking
     re_lock_delay_sec: int = 0  # suppress auto-locks for N seconds after an unlock/NEAR
+    near_consecutive_scans: int = 2  # require N consecutive above-near readings before NEAR
 
 
 DEFAULT_CONFIG = Config()
