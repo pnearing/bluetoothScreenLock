@@ -1,0 +1,2 @@
+# Exclude local virtualenv from source distributions
+prune .venv

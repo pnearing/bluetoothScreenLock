@@ -1,0 +1,3 @@
+# Ignore local virtualenv in diffs and source tarball
+extend-diff-ignore = \.venv(|/.*)
+extend-tar-ignore = .venv
