@@ -43,6 +43,11 @@ class TrayIndicator:
         self._status_label = Gtk.MenuItem(label="Status: Idle")
         self._status_label.set_sensitive(False)
 
+        # Optional warning banner (non-interactive)
+        self._warning_item = Gtk.MenuItem(label="")
+        self._warning_item.set_sensitive(False)
+        self._warning_item.set_visible(False)
+
         self._lock_item = Gtk.MenuItem(label="Lock now")
         self._lock_item.connect("activate", self._on_lock_now_activate)
 
@@ -59,6 +64,7 @@ class TrayIndicator:
 
         menu = Gtk.Menu()
         menu.append(self._status_label)
+        menu.append(self._warning_item)
         menu.append(Gtk.SeparatorMenuItem())
         menu.append(self._lock_item)
         menu.append(self._lock_toggle)
@@ -88,6 +94,16 @@ class TrayIndicator:
             self._status_label.set_label(f"Status: {text}")
         GLib.idle_add(update)
         logger.debug("Status updated: %s", text)
+
+    def set_warning(self, text: Optional[str]) -> None:
+        """Show or hide a warning line in the menu."""
+        def update() -> None:
+            if text:
+                self._warning_item.set_label(f"Warning: {text}")
+                self._warning_item.set_visible(True)
+            else:
+                self._warning_item.set_visible(False)
+        GLib.idle_add(update)
 
     def _on_lock_now_activate(self, _item: Gtk.MenuItem) -> None:
         logger.info("Lock now menu clicked")

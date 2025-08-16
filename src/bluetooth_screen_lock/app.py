@@ -67,6 +67,8 @@ class App:
                 "Monitoring" if getattr(self._cfg, "locking_enabled", True) else "Monitoring (lock off)"
             )
         )
+        # Show warning if using name-only matching
+        self._update_name_fallback_warning()
         logger.info("App ready: %s", "Idle" if not self._cfg.device_mac else "Monitoring")
 
     def _run_loop(self) -> None:
@@ -262,6 +264,8 @@ class App:
                 self._apply_autostart(self._cfg.autostart)
             save_config(self._cfg)
             self._indicator.set_status("Monitoring" if result.device_mac else "Idle")
+            # Refresh warning after settings change
+            self._update_name_fallback_warning()
             if self._monitor and result.device_mac:
                 mon_cfg = MonitorConfig(
                     device_mac=result.device_mac,
@@ -291,6 +295,20 @@ class App:
             logger.info("Locking %s", "enabled" if enabled else "disabled")
         except Exception:
             logger.exception("Failed to persist locking toggle")
+
+    def _update_name_fallback_warning(self) -> None:
+        """Show or hide a tray warning if name-based fallback matching is active.
+        Active when a device name is set but MAC address is not configured.
+        """
+        try:
+            name = (self._cfg.device_name or "").strip()
+            mac = (self._cfg.device_mac or "").strip()
+            if name and not mac:
+                self._indicator.set_warning("Name-only matching enabled; prefer MAC to avoid spoofing/false positives.")
+            else:
+                self._indicator.set_warning(None)
+        except Exception:
+            logger.exception("Failed to update name fallback warning")
 
     def _apply_autostart(self, enable: bool) -> None:
         """Create or remove the autostart .desktop entry for this app."""

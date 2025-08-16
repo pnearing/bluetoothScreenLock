@@ -75,9 +75,10 @@ class ProximityMonitor:
                         matched = False
                         if target_mac:
                             matched = (dev_addr == target_mac)
-                        if not matched and name_sub:
-                            # Fallback: name substring (case-insensitive)
-                            matched = (name_sub in dev_name.lower()) if dev_name else False
+                        # Only use name fallback when no MAC is configured
+                        if not target_mac and name_sub and not matched:
+                            # Fallback: exact name equality (case-insensitive)
+                            matched = (dev_name.lower() == name_sub) if dev_name else False
 
                         if matched:
                             self._last_seen_ts = time.time()

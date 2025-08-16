@@ -7,6 +7,7 @@ Lock your screen automatically when your selected Bluetooth device (e.g., your p
 - __RSSI preferred__ proximity detection via Bleak; configurable threshold and grace period.
 - Locks screen via `loginctl lock-session` (systemd-logind).
 - __Re-lock delay after unlock__: optional cooldown window after an actual system unlock to prevent immediate auto-locks. Unlock detection via GNOME ScreenSaver, freedesktop ScreenSaver, and systemd-logind.
+- __Safe device matching__: MAC address preferred; optional exact name fallback (with tray warning).
 
 ## Requirements
 This app uses PyGObject (GTK) and AppIndicator via GObject Introspection. Install system packages (Ubuntu/Debian):
@@ -61,6 +62,16 @@ The tray menu shows live RSSI while monitoring. The app locks the session when e
 - RSSI stays below the threshold for `grace_period_sec`, or
 - The device is not seen for `stale_after_sec + unseen_grace_sec` (i.e., after RSSI becomes stale, wait extra time before locking).
 
+### Device matching (MAC vs name)
+
+- __Preferred__: select a device by its __MAC address__. This is exact and avoids false positives.
+- __Fallback__: if no MAC is configured but a __device name__ is set, the app uses __exact name equality__ (case-insensitive). Substring matches are no longer used.
+- When name-only matching is active, the tray shows a warning: it is less secure and may be spoofed. Please configure a MAC when possible.
+
+Notes:
+- If `device_mac` is set, name is ignored for matching.
+- Some phones randomize advertising MACs; pairing or selecting the device from the scanner can help stabilize identification.
+
 ## Autostart and startup delay
 
 - Enable/disable autostart from Settings. This manages `~/.config/autostart/bluetooth-screen-lock.desktop` for your user.
@@ -69,6 +80,18 @@ The tray menu shows live RSSI while monitoring. The app locks the session when e
 ## Near-action command
 
 - Optional "Near command" runs when your device transitions from away to near (after having been away at least once). Leave blank to disable.
+- By default, commands run safely without a shell (arguments are split like a terminal would). This avoids shell injection risks.
+- If you need shell features (pipes, redirects, env var expansion), enable the checkbox "Run command in shell (advanced)" under the command box in Settings.
+
+Examples:
+
+- Without shell (default):
+  - `gnome-screensaver-command -d`
+  - `/home/me/bin/unlock-script --verbose`
+- With shell (enable checkbox first):
+  - `sh -lc 'export FOO=1; mycmd | tee /tmp/log'`
+
+Security: shell mode is powerful but risky; only enable it if you trust the command content.
 
 ## Re-lock delay (unlock detection)
 
@@ -93,6 +116,7 @@ print(__version__)
 - Some phones randomize MAC addresses per advertising; if RSSI doesn’t appear, try pairing the device or ensure it advertises while screen is on.
 - AppIndicator package name varies by distro. If `gir1.2-appindicator3-0.1` isn’t available, install `gir1.2-ayatanaappindicator3-0.1`.
 - No sudo required; Bleak uses BlueZ over D-Bus.
+ - Security: prefer MAC matching. Name-only mode is for convenience and is explicitly surfaced in the UI as a warning.
 
 ## How it works (overview)
 
@@ -145,13 +169,14 @@ When you unlock, you should see either `ActiveChanged false` (screensaver) or `L
 
 ## Config
 User config is stored at `~/.config/bluetooth-screen-lock/config.yaml` with keys:
-- `device_mac`, `device_name`
+- `device_mac`, `device_name` — if `device_mac` is set, matching is by MAC only; if `device_mac` is empty and `device_name` is set, exact name matching is used (tray shows a warning).
 - `rssi_threshold` (default -75)
 - `grace_period_sec` (default 15)
 - `unseen_grace_sec` (default 12) — additional wait after RSSI becomes stale before locking due to "unseen".
 - `autostart` (default false)
 - `start_delay_sec` (default 0)
 - `near_command` (default null)
+- `near_shell` (default false) — when true, run `near_command` via a shell (explicit opt‑in; see Security).
 - `hysteresis_db` (default 5)
 - `stale_after_sec` (default 8)
 - `scan_interval_sec` (default 2.0) — BLE scan loop interval.
