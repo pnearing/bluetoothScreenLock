@@ -1,3 +1,13 @@
+bluetooth-screen-lock (0.1.15-1) unstable; urgency=medium
+
+  [ Peter Nearing ]
+  * Settings: show immediate one-time warning when enabling 'Run command in shell'
+    and add a 'Learn more' button next to it. Persist the warned flag; retain a
+    save-time fallback dialog for migration cases.
+  * Bump upstream version to 0.1.15.
+
+ -- Peter Nearing <me@peternearing.ca>  Sun, 17 Aug 2025 09:20:44 -0400
+
 bluetooth-screen-lock (0.1.14-1) unstable; urgency=medium
 
   [ Peter Nearing ]

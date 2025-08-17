@@ -43,6 +43,8 @@ class SettingsResult:
     near_dwell_sec: int = 0
     # New: global rate limit for lock+unlock cycles
     cycle_rate_limit_min: int = 0
+    # New: one-time warning flag for shell execution
+    near_shell_warned: bool = False
 
 
 class SettingsWindow(Gtk.Window):
@@ -58,6 +60,8 @@ class SettingsWindow(Gtk.Window):
         self._selected_mac: Optional[str] = initial.device_mac
         self._selected_name: Optional[str] = initial.device_name
         self._autostart: bool = initial.autostart
+        # Track whether we've shown the shell warning in this session
+        self._near_shell_warned_session: bool = bool(getattr(initial, 'near_shell_warned', False))
 
         # RSSI monitor state
         self._rssi_monitor_running: bool = False
@@ -319,7 +323,63 @@ class SettingsWindow(Gtk.Window):
             "but is less safe. Only enable if you trust the command and understand the risks."
         )
         self.chk_near_shell.set_active(bool(getattr(initial, 'near_shell', False)))
-        grid.attach(self.chk_near_shell, 2, 11, 2, 1)
+        # Place checkbox at column 2 spanning 1 column to free space for the Learn more button at column 3
+        grid.attach(self.chk_near_shell, 2, 11, 1, 1)
+
+        # Shared dialog used by both the toggle handler and the Learn more button
+        def _show_near_shell_warning() -> None:
+            dlg = Gtk.MessageDialog(
+                transient_for=self,
+                modal=True,
+                message_type=Gtk.MessageType.WARNING,
+                buttons=Gtk.ButtonsType.OK,
+                text="Shell execution enabled for near command",
+            )
+            dlg.format_secondary_text(
+                "Running the near command via a shell can be risky (expands metacharacters, pipes, etc.).\n"
+                "Safer alternative: disable 'Run command in shell' and provide an absolute path to an executable.\n\n"
+                "When shell mode is used, this app runs: /bin/sh -c '<your command>' and sets PATH to '/usr/bin:/bin'.\n"
+                "This reduces ambiguity but still allows shell features. Enable only if you trust the command."
+            )
+            try:
+                dlg.run()
+            finally:
+                dlg.destroy()
+
+        # Immediate one-time warning on toggle to ON
+        def _on_near_shell_toggled(btn: Gtk.CheckButton) -> None:
+            try:
+                if btn.get_active() and not self._near_shell_warned_session:
+                    _show_near_shell_warning()
+                    self._near_shell_warned_session = True
+            except Exception:
+                logger.exception("Failed to show near_shell toggle warning")
+
+        self.chk_near_shell.connect("toggled", _on_near_shell_toggled)
+
+        # Learn more button next to the checkbox (left column of the same row)
+        btn_learn = Gtk.Button()
+        # Always show text; add icon if available
+        btn_learn.set_label("Learn more")
+        try:
+            img = Gtk.Image.new_from_icon_name("dialog-information", Gtk.IconSize.BUTTON)
+            btn_learn.set_image(img)
+            try:
+                btn_learn.set_always_show_image(True)
+            except Exception:
+                pass
+        except Exception:
+            # If icon resolution fails, we still have the text label
+            pass
+        btn_learn.set_tooltip_text("Learn more about shell execution risks and PATH used")
+        def _on_learn_clicked(_btn: Gtk.Button) -> None:
+            try:
+                _show_near_shell_warning()
+            except Exception:
+                logger.exception("Failed to show 'Learn more' dialog")
+        btn_learn.connect("clicked", _on_learn_clicked)
+        # Place Learn more button immediately to the right of the checkbox
+        grid.attach(btn_learn, 3, 11, 1, 1)
 
         # Buttons
         # File logging toggle and path hint
@@ -440,6 +500,7 @@ class SettingsWindow(Gtk.Window):
             file_logging_enabled=bool(self.chk_file_logging.get_active()),
             near_dwell_sec=max(0, int(self.spn_near_dwell.get_value())),
             cycle_rate_limit_min=max(0, int(self.spn_cycle_rl.get_value())),
+            near_shell_warned=bool(self._near_shell_warned_session),
         )
 
     def _on_scan(self, _btn: Gtk.Button) -> None:

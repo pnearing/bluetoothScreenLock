@@ -505,7 +505,7 @@ class App:
             use_shell = bool(getattr(self._cfg, "near_shell", False))
             try:
                 if use_shell:
-                    display = "sh -c"
+                    display = "/bin/sh -c"
                 else:
                     _argv = shlex.split(cmd)
                     display = _argv[0] if _argv else "<empty>"
@@ -514,7 +514,17 @@ class App:
             logger.info("Running near command: %s", display)
             # Run in background, do not wait. Default: no shell. Opt-in via cfg.near_shell=True.
             if use_shell:
-                subprocess.Popen(cmd, shell=True)
+                # Safer shell execution: pin shell path, constrain PATH, close FDs.
+                sh_bin = "/bin/sh"
+                safe_env = os.environ.copy()
+                # Keep PATH minimal to reduce ambiguity. Adjust if needed for user's script.
+                safe_env["PATH"] = "/usr/bin:/bin"
+                subprocess.Popen(
+                    [sh_bin, "-c", cmd],
+                    executable=sh_bin,
+                    env=safe_env,
+                    close_fds=True,
+                )
             else:
                 argv = shlex.split(cmd)
                 if not argv:
@@ -546,7 +556,7 @@ class App:
                     logger.debug("Stat/access check failed for %s", prog, exc_info=True)
                     return
                 # Safe to execute without PATH search
-                subprocess.Popen(argv, executable=prog)
+                subprocess.Popen(argv, executable=prog, close_fds=True)
         except Exception:
             logger.exception("Failed to run near command")
 
@@ -569,6 +579,7 @@ class App:
             file_logging_enabled=bool(getattr(self._cfg, 'file_logging_enabled', False)),
             near_dwell_sec=int(getattr(self._cfg, 'near_dwell_sec', 0)),
             cycle_rate_limit_min=int(getattr(self._cfg, 'cycle_rate_limit_min', 0)),
+            near_shell_warned=bool(getattr(self._cfg, 'near_shell_warned', False)),
         )
         win = SettingsWindow(initial)
         win.set_transient_for(None)
@@ -620,6 +631,9 @@ class App:
             self._cfg.device_name = result.device_name
             self._cfg.rssi_threshold = clamped_rssi
             self._cfg.grace_period_sec = clamped_grace
+            # Capture previous state for one-time warning logic
+            prev_near_shell = bool(getattr(self._cfg, 'near_shell', False))
+            prev_shell_warned = bool(getattr(self._cfg, 'near_shell_warned', False))
             self._cfg.near_command = getattr(result, 'near_command', None)
             self._cfg.near_shell = bool(getattr(result, 'near_shell', getattr(self._cfg, 'near_shell', False)))
             self._cfg.hysteresis_db = int(getattr(result, 'hysteresis_db', getattr(self._cfg, 'hysteresis_db', 5)))
@@ -630,6 +644,36 @@ class App:
             self._cfg.file_logging_enabled = bool(getattr(result, 'file_logging_enabled', getattr(self._cfg, 'file_logging_enabled', False)))
             self._cfg.near_dwell_sec = int(getattr(result, 'near_dwell_sec', getattr(self._cfg, 'near_dwell_sec', 0)))
             self._cfg.cycle_rate_limit_min = int(getattr(result, 'cycle_rate_limit_min', getattr(self._cfg, 'cycle_rate_limit_min', 0)))
+
+            # One-time UI warning when enabling shell execution for near_command.
+            # Also handle migration: if previously true but not warned, and user didn't toggle now.
+            try:
+                # Persist the warned flag from the session (toggle handler)
+                self._cfg.near_shell_warned = bool(getattr(result, 'near_shell_warned', prev_shell_warned))
+                if bool(getattr(self._cfg, 'near_shell', False)) and not (prev_shell_warned or bool(getattr(result, 'near_shell_warned', False))):
+                    # Show a blocking warning dialog so the user sees the implications immediately.
+                    dlg = Gtk.MessageDialog(
+                        transient_for=None,
+                        modal=True,
+                        message_type=Gtk.MessageType.WARNING,
+                        buttons=Gtk.ButtonsType.OK,
+                        text="Shell execution enabled for near command",
+                    )
+                    # Document the PATH we set and recommend safer no-shell mode
+                    dlg.format_secondary_text(
+                        "Running the near command via a shell can be risky (expands metacharacters, pipes, etc.).\n"
+                        "Safer alternative: disable 'Run command in shell' and provide an absolute path to an executable.\n\n"
+                        "When shell mode is used, this app runs: /bin/sh -c '<your command>' and sets PATH to '/usr/bin:/bin'.\n"
+                        "This reduces ambiguity but still allows shell features. Enable only if you trust the command."
+                    )
+                    try:
+                        dlg.run()
+                    finally:
+                        dlg.destroy()
+                    # Mark as warned to avoid repeat dialogs
+                    setattr(self._cfg, 'near_shell_warned', True)
+            except Exception:
+                logger.exception("Failed to show near_shell warning dialog")
             
             # Handle autostart toggle or delay change
             autostart_changed = (self._cfg.autostart != result.autostart)

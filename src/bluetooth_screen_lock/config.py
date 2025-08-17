@@ -57,6 +57,9 @@ class Config:
         Optional command to run when device becomes NEAR.
     near_shell : bool
         If true, run `near_command` via a shell.
+    near_shell_warned : bool
+        One-time flag: true after the UI has shown the safety warning about
+        enabling shell execution for the near command.
     hysteresis_db : int
         Extra dB above threshold required for NEAR; reduces flapping.
     stale_after_sec : int
@@ -85,6 +88,8 @@ class Config:
     start_delay_sec: int = 0  # delay app start on login
     near_command: Optional[str] = None  # command to run when device comes near
     near_shell: bool = False            # if true, run near_command via shell (explicit opt-in)
+    # One-time UI notice shown when enabling shell execution for near_command
+    near_shell_warned: bool = False
     hysteresis_db: int = 5  # additional dB above threshold required to consider NEAR (prevents flapping)
     stale_after_sec: int = 8  # invalidate RSSI if not seen for this many seconds
     scan_interval_sec: float = 2.0  # BLE scan loop interval
