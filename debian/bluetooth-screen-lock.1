@@ -1,0 +1,44 @@
+.TH BLUETOOTH-SCREEN-LOCK 1 "August 2025" "bluetooth-screen-lock 0.1.16" "User Commands"
+.SH NAME
+bluetooth-screen-lock \- lock/unlock the screen based on Bluetooth proximity
+.SH SYNOPSIS
+.B bluetooth-screen-lock
+[
+.I options
+]
+.SH DESCRIPTION
+.B bluetooth-screen-lock
+is a small GNOME/GTK tray application that monitors the RSSI (signal strength)
+of a configured Bluetooth Low Energy (BLE) device and locks the screen when the
+device moves away and unlocks (or stays unlocked) when it is near.
+.PP
+It is implemented in Python using GTK and Bleak. The app is intended for GNOME
+or other GTK-based desktop environments and provides a status icon (tray) with
+a menu.
+.SH OPTIONS
+The interactive tray app does not take mandatory command-line options. It reads
+its configuration from a YAML file located at:
+.PP
+\~\/.config\/bluetooth-screen-lock\/config.yaml
+.PP
+Key configurable fields include:
+.IP \[bu] 2
+\fBdevice_name\fR, \fBdevice_mac\fR
+.IP \[bu] 2
+\fBrssi_threshold\fR, \fBhysteresis_db\fR, \fBgrace_period_sec\fR
+.IP \[bu] 2
+\fBnear_command\fR, \fBnear_shell\fR (advanced; executes via /bin/sh \-c)
+.SH FILES
+.TP
+\fI~/.config/bluetooth-screen-lock/config.yaml\fR
+User configuration file.
+.SH ENVIRONMENT
+The application sets a minimal PATH (\fI/usr/bin:/bin\fR) when executing the
+near command in shell mode (advanced) to reduce ambiguity. Shell execution is
+potentially unsafe and should only be enabled if you trust the command.
+.SH SEE ALSO
+\fBgnome-shell(1)\fR, \fBgsettings(1)\fR
+.SH AUTHORS
+Bluetooth Screen Lock Maintainers.
+.SH COPYRIGHT
+Licensed under the Apache License, Version 2.0.
