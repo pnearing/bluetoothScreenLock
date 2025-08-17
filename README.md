@@ -8,6 +8,8 @@ Lock your screen automatically when your selected Bluetooth device (e.g., your p
 - Locks screen via `loginctl lock-session` (systemd-logind).
 - __Re-lock delay after unlock__: optional cooldown window after an actual system unlock to prevent immediate auto-locks. Unlock detection via GNOME ScreenSaver, freedesktop ScreenSaver, and systemd-logind.
 - __Safe device matching__: MAC address preferred; optional exact name fallback (with tray warning).
+- __Near dwell before action__: optionally require the device to remain NEAR for N seconds before running the near action.
+- __Global cycle rate limit__: optionally limit to at most one lock+unlock cycle per M minutes to avoid churn.
 
 ## Requirements
 This app uses PyGObject (GTK) and AppIndicator via GObject Introspection. Install system packages (Ubuntu/Debian):
@@ -93,6 +95,8 @@ Notes:
 - By default, commands run safely without a shell (arguments are split like a terminal would). This avoids shell injection risks.
 - If you need shell features (pipes, redirects, env var expansion), enable the checkbox "Run command in shell (advanced)" under the command box in Settings.
 
+You can add an optional __Near dwell__ in Settings → "Near dwell (sec)". When set > 0, the app requires your device to remain NEAR for the configured number of seconds before running the near command. This helps avoid false triggers due to brief signal spikes.
+
 Examples:
 
 - Without shell (default):
@@ -112,6 +116,11 @@ Security: shell mode is powerful but risky; only enable it if you trust the comm
   - Freedesktop: `org.freedesktop.ScreenSaver` `ActiveChanged(false)` on `/org/freedesktop/ScreenSaver`.
   - systemd-logind: `org.freedesktop.login1.Session` `LockedHint=false` via `PropertiesChanged` on your session path.
 
+## Global cycle rate limit
+
+- Configure in Settings → "Cycle rate limit (min)". When set > 0, the app allows at most one complete lock+unlock cycle per the configured minutes.
+- Rationale: prevents rapid lock/unlock oscillation when hovering near the threshold.
+
 ## Version
 
 The package exposes a unified version string:
@@ -126,7 +135,11 @@ print(__version__)
 - Some phones randomize MAC addresses per advertising; if RSSI doesn’t appear, try pairing the device or ensure it advertises while screen is on.
 - AppIndicator package name varies by distro. If `gir1.2-appindicator3-0.1` isn’t available, install `gir1.2-ayatanaappindicator3-0.1`.
 - No sudo required; Bleak uses BlueZ over D-Bus.
- - Security: prefer MAC matching. Name-only mode is for convenience and is explicitly surfaced in the UI as a warning.
+- Security: prefer MAC matching. Name-only mode is for convenience and is explicitly surfaced in the UI as a warning.
+
+Additional notes:
+- DBus operations use finite default timeouts to avoid indefinite hangs if a service stalls (e.g., 3s call timeout). This keeps the UI responsive.
+- Autostart start-delay wrapper uses absolute binaries (`/bin/sh`, `/bin/sleep`, resolved `base64`) to avoid PATH ambiguity at login. Falls back gracefully if unavailable.
 
 ## How it works (overview)
 
@@ -192,6 +205,8 @@ User config is stored at `~/.config/bluetooth-screen-lock/config.yaml` with keys
 - `scan_interval_sec` (default 2.0) — BLE scan loop interval.
 - `locking_enabled` (default true) — master toggle for automatic locking.
 - `re_lock_delay_sec` (default 0) — seconds to suppress auto-lock after an unlock. 0 disables.
+- `near_dwell_sec` (default 0) — seconds your device must remain NEAR before running the near command. 0 disables dwell.
+- `cycle_rate_limit_min` (default 0) — limit to at most one lock+unlock cycle per this many minutes. 0 disables.
 
 ### Tuning recommendations
 - __Make grace > stale__: set `grace_period_sec` moderately higher than `stale_after_sec` to avoid locking on brief advertising gaps.

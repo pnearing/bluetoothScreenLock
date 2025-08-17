@@ -40,6 +40,8 @@ Open the tray menu and click "Settings…".
 - Stale RSSI timeout: Consider RSSI unknown if device not seen for this many seconds.
 - Near debounce (scans): Require N consecutive scans above near trigger to treat as NEAR.
 - Re-lock delay (sec): Suppress auto-locks briefly after you unlock.
+- Near dwell (sec): Require the device to remain NEAR for N seconds before running the near command.
+- Cycle rate limit (min): Allow at most one lock+unlock cycle per M minutes to avoid churn.
 - Start at login / Start delay: Manage autostart .desktop creation and optional delay.
 - Optional near command: Run a command when device becomes NEAR (e.g., dismiss screensaver).
 
@@ -73,3 +75,5 @@ journalctl --user -u bluetooth-screen-lock
 - If your phone rotates MAC addresses, pair it or use name equality as a fallback (less secure).
 - Verbosity: set `LOG_LEVEL=DEBUG` before launching to get detailed logs.
 - If locking fails, the app tries several methods: loginctl, GNOME DBus, xdg-screensaver, etc.
+- DBus calls have finite timeouts (e.g., ~3s) to avoid UI hangs when services stall. If your desktop's DBus is slow, operations may retry/fallback automatically.
+- Autostart delay wrapper uses absolute binaries and falls back gracefully if helpers like `base64` are unavailable.

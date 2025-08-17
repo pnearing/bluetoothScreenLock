@@ -18,6 +18,8 @@ Highlights:
 - __Near debounce__: Require N consecutive scans above the near trigger (`near_consecutive_scans`).
 - __Near command__: Optional command executed once on NEAR. A “Run in shell” toggle is available
   for advanced use; prefer absolute paths and avoid shell unless needed.
+- __Near dwell__: Require the device to remain NEAR for N seconds before running the near command (`near_dwell_sec`).
+- __Cycle rate limit__: Allow at most one lock+unlock cycle per M minutes to avoid churn (`cycle_rate_limit_min`).
 - __Name-only fallback warning__: Inline banner appears if only a device name is used; prefer MACs
   to minimize spoofing/false positives.
 
