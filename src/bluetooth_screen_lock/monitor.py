@@ -138,7 +138,8 @@ class ProximityMonitor:
                             if rssi_val is None:
                                 rssi_val = getattr(device, "rssi", None)
                             self._last_rssi = rssi_val
-                            logger.debug("Detected %s (%s) RSSI=%s dBm", dev_addr, dev_name or "", rssi_val)
+                            # Log hygiene: redact MAC even at DEBUG to minimize accidental exposure in shared logs
+                            logger.debug("Detected %s (%s) RSSI=%s dBm", _redact_mac(dev_addr), dev_name or "", rssi_val)
                     except Exception:
                         logger.exception("Detection callback error")
 
