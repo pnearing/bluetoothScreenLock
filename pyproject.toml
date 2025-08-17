@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bluetooth-screen-lock"
-version = "0.1.11"
+version = "0.1.12"
 description = "Lock/unlock the screen based on Bluetooth proximity (GNOME/GTK tray)"
 readme = "README.md"
 authors = [
@@ -39,4 +39,5 @@ include = ["bluetooth_screen_lock*"]
 [tool.setuptools.package-data]
 # No package data by default; icons/desktop are installed by the distro packaging.
 bluetooth_screen_lock = []
+
 

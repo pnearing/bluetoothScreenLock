@@ -1,4 +1,4 @@
-bluetooth-screen-lock (0.1.11-2) unstable; urgency=medium
+bluetooth-screen-lock (0.1.12-1) unstable; urgency=medium
 
   [ Peter Nearing ]
   * Harden autostart delay wrapper to avoid PATH-dependent tools.
