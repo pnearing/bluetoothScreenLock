@@ -5,6 +5,9 @@ bluetooth-screen-lock (0.1.11-2) unstable; urgency=medium
     Use absolute /bin/sh and /bin/sleep, resolve base64 with shutil.which
     and require an absolute path; gracefully fall back to no delay if
     base64 is unavailable. Eliminates PATH ambiguity at login.
+  * DBus calls: set finite default timeouts (3000ms) in _dbus_call() and
+    _dbus_call_reply() to prevent indefinite hangs if a DBus service stalls.
+    Remove explicit -1 (infinite) call-site usages so new defaults apply.
 
  -- Peter Nearing <me@peternearing.ca>  Sun, 17 Aug 2025 07:51:48 -0400
 

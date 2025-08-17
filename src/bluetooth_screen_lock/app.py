@@ -264,9 +264,12 @@ class App:
         interface: str,
         method: str,
         params: Optional[GLib.Variant] = None,
-        timeout_ms: int = -1,
+        timeout_ms: int = 3000,
     ) -> Optional[GLib.Variant]:
-        """Call a DBus method and return the GLib.Variant reply on success, else None."""
+        """Call a DBus method and return the GLib.Variant reply on success, else None.
+
+        Default timeout is 3000ms to prevent UI/lock path hangs if a DBus service stalls.
+        """
         try:
             if bus_type == Gio.BusType.SESSION:
                 if getattr(self, "_session_bus", None) is None:
@@ -303,13 +306,14 @@ class App:
         interface: str,
         method: str,
         params: Optional[GLib.Variant] = None,
-        timeout_ms: int = -1,
+        timeout_ms: int = 3000,
     ) -> bool:
         """Call a DBus method via Gio and return True if the call succeeds.
 
         This helper centralizes DBus interactions to avoid shelling out to tools
         like dbus-send/gdbus, ensuring session-scoped operations in multi-user
         environments.
+        Default timeout is 3000ms to prevent UI/lock path hangs if a DBus service stalls.
         """
         try:
             if bus_type == Gio.BusType.SESSION:
@@ -386,7 +390,6 @@ class App:
                     "org.freedesktop.login1.Manager",
                     "GetSessionByPID",
                     GLib.Variant("(u)", (os.getpid(),)),
-                    -1,
                 )
                 if res is not None:
                     sess_path = res.unpack()[0]
@@ -442,7 +445,6 @@ class App:
                         "org.freedesktop.login1.Manager",
                         "GetSessionByPID",
                         GLib.Variant("(u)", (os.getpid(),)),
-                        -1,
                     )
                     if res is not None:
                         sess_path = res.unpack()[0]
