@@ -63,11 +63,6 @@ The current RSSI is shown live to help pick a suitable threshold.
   - Else: `~/bluetooth-screen-lock.log`
 - Rotation defaults: 5 MiB per file, 3 backups.
 - Stdout contains DEBUG/INFO; stderr contains WARNING and above.
-- When run as a user systemd service, logs are also visible in the journal:
-
-```bash
-journalctl --user -u bluetooth-screen-lock
-```
 
 ## Tray Menu
 

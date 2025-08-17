@@ -90,7 +90,6 @@ Notes:
   - Otherwise: `~/bluetooth-screen-lock.log`
 - Rotation defaults: 5 MiB per file, 3 backups.
 - Stdout shows DEBUG/INFO; stderr shows WARNING+.
-- When run as a user systemd service, logs are also available via the journal (`journalctl --user -u bluetooth-screen-lock`).
 
 ## Near-action command (Near Command tab)
 
@@ -222,34 +221,6 @@ User config is stored at `~/.config/bluetooth-screen-lock/config.yaml` with keys
 
 ## Roadmap
 - Advanced heuristics/smoothing for RSSI.
-
-## Systemd unit hardening (defaults and overrides)
-
-The user unit at `systemd/user/bluetooth-screen-lock.service` ships with sandboxing enabled by default for defense-in-depth:
-
-- `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectControlGroups=yes`, `ProtectKernelTunables=yes`, `ProtectSystem=strict`
-- `ProtectHome=read-only` — keeps `$HOME` read-only while preserving access to the session D-Bus under `/run/user/$UID`
-- `ReadWritePaths=%h/.config/bluetooth-screen-lock` — allows writes only to the app config dir (matches `CONFIG_DIR` in `src/bluetooth_screen_lock/config.py`)
-- `RestrictAddressFamilies=AF_UNIX AF_BLUETOOTH` — local sockets and Bluetooth only by default
-- `RestrictNamespaces=yes`, `LockPersonality=yes`, `MemoryDenyWriteExecute=yes`
-
-Override or relax locally via a user drop-in:
-
-```bash
-systemctl --user edit bluetooth-screen-lock.service
-# Example: allow Internet for a near_command that needs network
-[Service]
-RestrictAddressFamilies=AF_UNIX AF_BLUETOOTH AF_INET AF_INET6
-```
-
-Reload and restart:
-
-```bash
-systemctl --user daemon-reload
-systemctl --user restart bluetooth-screen-lock.service
-```
-
-An example stricter drop-in is provided at `systemd/user/bluetooth-screen-lock.service.d/hardening.conf` (uses `ProtectHome=yes`). If you use that variant, ensure `ReadWritePaths=%h/.config/bluetooth-screen-lock` remains present so your config stays writable.
 
 ## License
 
