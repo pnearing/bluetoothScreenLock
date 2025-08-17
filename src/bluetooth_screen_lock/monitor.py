@@ -50,6 +50,8 @@ class MonitorConfig:
     scan_interval_sec: float = 2.0
     # Require N consecutive scans above the near trigger before treating as NEAR
     near_consecutive_scans: int = 2
+    # Allow matching by device_name when device_mac is not set
+    allow_name_matching: bool = False
 
 
 class ProximityMonitor:
@@ -126,8 +128,8 @@ class ProximityMonitor:
                         matched = False
                         if target_mac:
                             matched = (dev_addr == target_mac)
-                        # Only use name fallback when no MAC is configured
-                        if not target_mac and target_name and not matched:
+                        # Only use name fallback when no MAC is configured and feature is enabled
+                        if (not target_mac) and bool(getattr(self._config, 'allow_name_matching', False)) and target_name and not matched:
                             # Fallback: exact name equality (case-insensitive)
                             matched = (dev_name.lower() == target_name) if dev_name else False
 

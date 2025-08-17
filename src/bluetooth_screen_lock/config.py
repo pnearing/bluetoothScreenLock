@@ -84,6 +84,9 @@ class Config:
     near_kill_grace_sec : int
         After sending SIGTERM on timeout, wait this many seconds before
         sending SIGKILL if the process group has not exited.
+    allow_name_matching : bool
+        If true, allow falling back to device name matching when MAC is not
+        configured. Disabled by default to prefer MAC-based matching.
     """
     device_mac: Optional[str] = None  # e.g., "AA:BB:CC:DD:EE:FF"
     device_name: Optional[str] = None
@@ -109,6 +112,8 @@ class Config:
     # Timeout behavior for near_command: 0 disables timeout; grace controls SIGKILL delay
     near_timeout_sec: int = 0
     near_kill_grace_sec: int = 5
+    # Whether to allow name matching fallback when no MAC is configured
+    allow_name_matching: bool = False
     # --- File logging options ---
     # Master toggle to enable writing logs to a rotating file in addition to stdout/stderr
     file_logging_enabled: bool = False

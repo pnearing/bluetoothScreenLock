@@ -128,14 +128,17 @@ class App:
         except Exception:
             logger.exception("Failed to initialize unlock monitor; re-lock delay may not work")
 
+        can_monitor = bool(self._cfg.device_mac) or (
+            bool(getattr(self._cfg, 'allow_name_matching', False)) and bool((self._cfg.device_name or '').strip())
+        )
         self._indicator.set_status(
-            "Idle" if not self._cfg.device_mac else (
+            "Idle" if not can_monitor else (
                 "Monitoring" if getattr(self._cfg, "locking_enabled", True) else "Monitoring (lock off)"
             )
         )
         # Disable "Lock now" if no device is configured to avoid confusion
         try:
-            self._indicator.set_lock_available(bool(self._cfg.device_mac))
+            self._indicator.set_lock_available(can_monitor)
         except Exception:
             logger.exception("Failed to update lock availability on startup")
         # Show warning if using name-only matching
@@ -148,8 +151,9 @@ class App:
         self._loop.run_forever()
 
     def _ensure_monitor(self) -> None:
-        if not self._cfg.device_mac:
-            logger.debug("No device configured; monitor not started")
+        # Start monitor if we have a MAC, or if name-matching is allowed and a name is set
+        if not (self._cfg.device_mac or (bool(getattr(self._cfg, 'allow_name_matching', False)) and bool((self._cfg.device_name or '').strip()))):
+            logger.debug("No suitable device identifier configured; monitor not started")
             return
         mon_cfg = MonitorConfig(
             device_mac=self._cfg.device_mac,
@@ -161,6 +165,7 @@ class App:
             unseen_grace_sec=getattr(self._cfg, 'unseen_grace_sec', self._cfg.grace_period_sec),
             scan_interval_sec=max(1.0, float(getattr(self._cfg, 'scan_interval_sec', 2.0))),
             near_consecutive_scans=int(getattr(self._cfg, 'near_consecutive_scans', 2)),
+            allow_name_matching=bool(getattr(self._cfg, 'allow_name_matching', False)),
         )
         def on_near(rssi: int) -> None:
             try:
@@ -636,6 +641,7 @@ class App:
             near_shell_warned=bool(getattr(self._cfg, 'near_shell_warned', False)),
             near_timeout_sec=int(getattr(self._cfg, 'near_timeout_sec', 0)),
             near_kill_grace_sec=int(getattr(self._cfg, 'near_kill_grace_sec', 5)),
+            allow_name_matching=bool(getattr(self._cfg, 'allow_name_matching', False)),
         )
         win = SettingsWindow(initial)
         win.set_transient_for(None)
@@ -702,6 +708,7 @@ class App:
             self._cfg.cycle_rate_limit_min = int(getattr(result, 'cycle_rate_limit_min', getattr(self._cfg, 'cycle_rate_limit_min', 0)))
             self._cfg.near_timeout_sec = int(getattr(result, 'near_timeout_sec', getattr(self._cfg, 'near_timeout_sec', 0)))
             self._cfg.near_kill_grace_sec = int(getattr(result, 'near_kill_grace_sec', getattr(self._cfg, 'near_kill_grace_sec', 5)))
+            self._cfg.allow_name_matching = bool(getattr(result, 'allow_name_matching', getattr(self._cfg, 'allow_name_matching', False)))
 
             # One-time UI warning when enabling shell execution for near_command.
             # Also handle migration: if previously true but not warned, and user didn't toggle now.
@@ -741,15 +748,18 @@ class App:
             if autostart_changed or (self._cfg.autostart and delay_changed):
                 self._apply_autostart(self._cfg.autostart)
             save_config(self._cfg)
-            self._indicator.set_status("Monitoring" if result.device_mac else "Idle")
+            can_monitor_after = bool(result.device_mac) or (
+                bool(getattr(self._cfg, 'allow_name_matching', False)) and bool((result.device_name or '').strip())
+            )
+            self._indicator.set_status("Monitoring" if can_monitor_after else "Idle")
             # Update tray action availability
             try:
-                self._indicator.set_lock_available(bool(result.device_mac))
+                self._indicator.set_lock_available(can_monitor_after)
             except Exception:
                 logger.exception("Failed to update lock availability after settings change")
             # Refresh warning after settings change
             self._update_name_fallback_warning()
-            if self._monitor and result.device_mac:
+            if self._monitor and can_monitor_after:
                 mon_cfg = MonitorConfig(
                     device_mac=result.device_mac,
                     device_name=result.device_name,
@@ -760,9 +770,10 @@ class App:
                     unseen_grace_sec=int(getattr(self._cfg, 'unseen_grace_sec', clamped_grace)),
                     scan_interval_sec=max(1.0, float(getattr(self._cfg, 'scan_interval_sec', 2.0))),
                     near_consecutive_scans=int(getattr(result, 'near_consecutive_scans', getattr(self._cfg, 'near_consecutive_scans', 2))),
+                    allow_name_matching=bool(getattr(self._cfg, 'allow_name_matching', False)),
                 )
                 self._monitor.update_config(mon_cfg)
-            elif result.device_mac and not self._monitor:
+            elif can_monitor_after and not self._monitor:
                 self._ensure_monitor()
 
         win.connect("hide", on_hide)
@@ -782,13 +793,16 @@ class App:
 
     def _update_name_fallback_warning(self) -> None:
         """Show or hide a tray warning if name-based fallback matching is active.
-        Active when a device name is set but MAC address is not configured.
+        Active when a device name is set but MAC address is not configured and name matching is enabled.
         """
         try:
             name = (self._cfg.device_name or "").strip()
             mac = (self._cfg.device_mac or "").strip()
-            if name and not mac:
+            allow = bool(getattr(self._cfg, 'allow_name_matching', False))
+            if name and not mac and allow:
                 self._indicator.set_warning("Name-only matching enabled; prefer MAC to avoid spoofing/false positives.")
+            elif name and not mac and not allow:
+                self._indicator.set_warning("Name matching disabled; set a MAC to enable monitoring.")
             else:
                 self._indicator.set_warning(None)
         except Exception:

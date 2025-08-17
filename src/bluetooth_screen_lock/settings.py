@@ -48,6 +48,8 @@ class SettingsResult:
     # New: timeout controls for near command
     near_timeout_sec: int = 0
     near_kill_grace_sec: int = 5
+    # New: control whether name-based matching is allowed when MAC is not set
+    allow_name_matching: bool = False
 
 
 class SettingsWindow(Gtk.Window):
@@ -121,6 +123,19 @@ class SettingsWindow(Gtk.Window):
         )
         gen_grid.attach(btn_scan, 3, 1, 1, 1)
 
+        # Allow name matching toggle (General > Device)
+        self.chk_name_matching = Gtk.CheckButton.new_with_label("Allow name matching when MAC unavailable")
+        self.chk_name_matching.set_tooltip_text(
+            "If enabled and no MAC is set, match by exact device name (case-insensitive).\n"
+            "MAC is preferred for reliability/security."
+        )
+        try:
+            self.chk_name_matching.set_active(bool(getattr(initial, 'allow_name_matching', False)))
+        except Exception:
+            self.chk_name_matching.set_active(False)
+        # Place below the device selection row
+        gen_grid.attach(self.chk_name_matching, 0, 2, 4, 1)
+
         # Inline warning for name-only matching fallback
         self.lbl_name_fallback = Gtk.Label()
         self.lbl_name_fallback.set_xalign(0)
@@ -131,7 +146,8 @@ class SettingsWindow(Gtk.Window):
             self.lbl_name_fallback.get_style_context().add_class("dim-label")
         except Exception:
             pass
-        gen_grid.attach(self.lbl_name_fallback, 0, 2, 4, 1)
+        # Place banner below the checkbox
+        gen_grid.attach(self.lbl_name_fallback, 0, 3, 4, 1)
 
         # General tab section header: Proximity
         hdr_proximity = Gtk.Label()
@@ -140,7 +156,7 @@ class SettingsWindow(Gtk.Window):
         except Exception:
             hdr_proximity.set_text("Proximity")
         hdr_proximity.set_xalign(0)
-        gen_grid.attach(hdr_proximity, 0, 3, 4, 1)
+        gen_grid.attach(hdr_proximity, 0, 4, 4, 1)
 
         # Current RSSI display
         lbl_rssi_cur_title = Gtk.Label(label="Current RSSI:")
@@ -148,14 +164,14 @@ class SettingsWindow(Gtk.Window):
         lbl_rssi_cur_title.set_tooltip_text(
             "Live RSSI for the selected device (in dBm)."
         )
-        gen_grid.attach(lbl_rssi_cur_title, 0, 4, 1, 1)
+        gen_grid.attach(lbl_rssi_cur_title, 0, 5, 1, 1)
 
         self.lbl_rssi_current = Gtk.Label(label="— dBm")
         self.lbl_rssi_current.set_xalign(0)
         self.lbl_rssi_current.set_tooltip_text(
             "Live measured signal strength: closer = higher (e.g., -50), farther = lower (e.g., -90)."
         )
-        gen_grid.attach(self.lbl_rssi_current, 1, 4, 3, 1)
+        gen_grid.attach(self.lbl_rssi_current, 1, 5, 3, 1)
 
         # RSSI threshold
         lbl_rssi = Gtk.Label(label="RSSI threshold (dBm):")
@@ -165,7 +181,7 @@ class SettingsWindow(Gtk.Window):
             " closer = higher (e.g., -50), farther = lower (e.g., -90)."
             " Screen locks when RSSI stays below this threshold for the grace period."
         )
-        gen_grid.attach(lbl_rssi, 0, 5, 2, 1)
+        gen_grid.attach(lbl_rssi, 0, 6, 2, 1)
 
         adjustment_rssi = Gtk.Adjustment(value=initial.rssi_threshold, lower=-100, upper=-30, step_increment=1)
         self.spn_rssi = Gtk.SpinButton()
@@ -175,7 +191,7 @@ class SettingsWindow(Gtk.Window):
             "Typical range: -90 (far) to -50 (near)."
             " Choose a threshold like -75 dBm for conservative locking."
         )
-        gen_grid.attach(self.spn_rssi, 2, 5, 2, 1)
+        gen_grid.attach(self.spn_rssi, 2, 6, 2, 1)
 
         # Grace period
         lbl_grace = Gtk.Label(label="Grace period (sec):")
@@ -184,7 +200,7 @@ class SettingsWindow(Gtk.Window):
             "How long RSSI must stay below the threshold (or device unseen)"
             " before the screen locks. Helps avoid brief signal dips."
         )
-        gen_grid.attach(lbl_grace, 0, 6, 2, 1)
+        gen_grid.attach(lbl_grace, 0, 7, 2, 1)
 
         adjustment_grace = Gtk.Adjustment(value=initial.grace_period_sec, lower=1, upper=60, step_increment=1)
         self.spn_grace = Gtk.SpinButton()
@@ -193,7 +209,7 @@ class SettingsWindow(Gtk.Window):
         self.spn_grace.set_tooltip_text(
             "Seconds to tolerate weak/no signal before locking (e.g., 8 seconds)."
         )
-        gen_grid.attach(self.spn_grace, 2, 6, 2, 1)
+        gen_grid.attach(self.spn_grace, 2, 7, 2, 1)
 
         # General tab section header: Startup
         hdr_startup = Gtk.Label()
@@ -202,7 +218,7 @@ class SettingsWindow(Gtk.Window):
         except Exception:
             hdr_startup.set_text("Startup")
         hdr_startup.set_xalign(0)
-        gen_grid.attach(hdr_startup, 0, 7, 4, 1)
+        gen_grid.attach(hdr_startup, 0, 8, 4, 1)
 
         # Autostart at login
         self.chk_autostart = Gtk.CheckButton.new_with_label("Start at login")
@@ -210,7 +226,7 @@ class SettingsWindow(Gtk.Window):
             "Enable to launch Bluetooth Screen Lock automatically when you sign in."
         )
         self.chk_autostart.set_active(initial.autostart)
-        gen_grid.attach(self.chk_autostart, 0, 8, 4, 1)
+        gen_grid.attach(self.chk_autostart, 0, 9, 4, 1)
 
         # Autostart delay
         lbl_delay = Gtk.Label(label="Start delay (sec):")
@@ -218,7 +234,7 @@ class SettingsWindow(Gtk.Window):
         lbl_delay.set_tooltip_text(
             "Delay after login before starting the app."
         )
-        gen_grid.attach(lbl_delay, 0, 9, 2, 1)
+        gen_grid.attach(lbl_delay, 0, 10, 2, 1)
 
         adjustment_delay = Gtk.Adjustment(value=max(0, int(getattr(initial, 'start_delay_sec', 0))), lower=0, upper=600, step_increment=1)
         self.spn_delay = Gtk.SpinButton()
@@ -226,7 +242,7 @@ class SettingsWindow(Gtk.Window):
         self.spn_delay.set_digits(0)
         self.spn_delay.set_tooltip_text("0 for no delay. Typical values: 5–30 seconds.")
         self.spn_delay.set_sensitive(self.chk_autostart.get_active())
-        gen_grid.attach(self.spn_delay, 2, 9, 2, 1)
+        gen_grid.attach(self.spn_delay, 2, 10, 2, 1)
 
         def _toggle_delay(_btn: Gtk.CheckButton) -> None:
             self.spn_delay.set_sensitive(_btn.get_active())
@@ -557,6 +573,10 @@ class SettingsWindow(Gtk.Window):
 
         # Initialize inline name-fallback warning visibility
         self._update_name_fallback_banner()
+        # Recompute banner when checkbox toggles
+        def _on_name_match_toggle(_btn: Gtk.CheckButton) -> None:
+            self._update_name_fallback_banner()
+        self.chk_name_matching.connect("toggled", _on_name_match_toggle)
 
         # start RSSI monitor if we already have a selected device
         if self._selected_mac:
@@ -569,9 +589,15 @@ class SettingsWindow(Gtk.Window):
         try:
             name = (self._selected_name or "").strip()
             mac = (self._selected_mac or "").strip() if self._selected_mac else ""
-            if name and not mac:
+            allow = bool(self.chk_name_matching.get_active()) if hasattr(self, 'chk_name_matching') else False
+            if name and not mac and allow:
                 self.lbl_name_fallback.set_markup(
                     "<b>Warning:</b> Name-only matching enabled; prefer MAC to avoid spoofing/false positives."
+                )
+                self.lbl_name_fallback.show()
+            elif name and not mac and not allow:
+                self.lbl_name_fallback.set_markup(
+                    "<b>Note:</b> Name matching is disabled; set a MAC to enable monitoring."
                 )
                 self.lbl_name_fallback.show()
             else:
@@ -641,6 +667,7 @@ class SettingsWindow(Gtk.Window):
             near_shell_warned=bool(self._near_shell_warned_session),
             near_timeout_sec=max(0, int(self.spn_timeout.get_value())),
             near_kill_grace_sec=max(1, int(self.spn_kill_grace.get_value())),
+            allow_name_matching=bool(self.chk_name_matching.get_active()),
         )
 
     def _on_scan(self, _btn: Gtk.Button) -> None:
@@ -717,9 +744,9 @@ class SettingsWindow(Gtk.Window):
                         try:
                             scanner = BleakScanner()
 
-                            # Allow fallback to name substring if MACs rotate
+                            # Allow fallback to name substring if MACs rotate (only if enabled in UI)
                             target_mac = (mac or "").upper()
-                            name_sub = (self._selected_name or "").strip().lower()
+                            name_sub = (self._selected_name or "").strip().lower() if bool(self.chk_name_matching.get_active()) else ""
 
                             def on_detect(device, advertisement_data):
                                 try:
