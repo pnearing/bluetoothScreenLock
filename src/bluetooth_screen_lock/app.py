@@ -168,7 +168,7 @@ class App:
                 is_near = rssi > self._cfg.rssi_threshold
                 if is_near and not self._was_near:
                     # Transitioned to NEAR; start dwell timer
-                    self._near_since_ts = time.time()
+                    self._near_since_ts = time.monotonic()
                 if is_near and self._armed:
                     dwell = max(0, int(getattr(self._cfg, 'near_dwell_sec', 0)))
                     if dwell <= 0:
@@ -177,7 +177,7 @@ class App:
                         self._armed = False  # Disarm until next AWAY
                     else:
                         # Require sustained NEAR for the dwell duration
-                        if self._near_since_ts is not None and (time.time() - self._near_since_ts) >= dwell:
+                        if self._near_since_ts is not None and (time.monotonic() - self._near_since_ts) >= dwell:
                             self._run_near_command()
                             self._armed = False
                 self._was_near = is_near
@@ -195,22 +195,22 @@ class App:
                 # Global cycle rate limit: allow at most one lock+unlock cycle per window
                 window_min = max(0, int(getattr(self._cfg, 'cycle_rate_limit_min', 0)))
                 if window_min > 0 and self._last_cycle_completed_ts:
-                    if (time.time() - self._last_cycle_completed_ts) < (window_min * 60):
-                        remaining = int((window_min * 60) - (time.time() - self._last_cycle_completed_ts))
+                    if (time.monotonic() - self._last_cycle_completed_ts) < (window_min * 60):
+                        remaining = int((window_min * 60) - (time.monotonic() - self._last_cycle_completed_ts))
                         logger.info("Cycle rate-limit active: skipping auto-lock (next allowed in %ss)", remaining)
                         self._indicator.set_status(f"Away (rate-limited {remaining}s)")
                         return
                 # Enforce re-lock delay after an actual UNLOCK event
                 cooldown = max(0, int(getattr(self._cfg, "re_lock_delay_sec", 0)))
                 if cooldown > 0 and self._last_unlock_ts:
-                    since_unlock = time.time() - self._last_unlock_ts
+                    since_unlock = time.monotonic() - self._last_unlock_ts
                     if since_unlock < cooldown:
                         remaining = int(cooldown - since_unlock)
                         logger.info("Re-lock delay active: skipping auto-lock (%ss remaining)", remaining)
                         self._indicator.set_status(f"Away (cooldown {remaining}s)")
                         return
                 self._lock_screen()
-                self._last_lock_ts = time.time()
+                self._last_lock_ts = time.monotonic()
             else:
                 self._indicator.set_status("Away (lock off)")
 
@@ -523,6 +523,9 @@ class App:
             def _start_watchdog(proc: subprocess.Popen) -> None:
                 if timeout <= 0:
                     return
+                # NOTE: We do not capture stdout/stderr. If in the future we add
+                # pipes for output capture, ensure we cap the collected bytes or
+                # use non-blocking reads to avoid unbounded memory/FD buffer growth.
                 def _watch() -> None:
                     try:
                         # Wait for process to finish up to timeout
@@ -1005,7 +1008,7 @@ class App:
                     active = parameters.get_child_value(0).get_boolean()
                     if not active:
                         # Unlocked
-                        self._last_unlock_ts = time.time()
+                        self._last_unlock_ts = time.monotonic()
                         logger.info("Unlock detected via ScreenSaver ActiveChanged")
                         # Consider cycle complete when we observe an unlock following a prior lock
                         if self._last_lock_ts:
@@ -1104,7 +1107,7 @@ class App:
                         if "LockedHint" in changed:
                             locked = changed["LockedHint"].unpack()
                             if locked is False:
-                                self._last_unlock_ts = time.time()
+                                self._last_unlock_ts = time.monotonic()
                                 logger.info("Unlock detected via login1 LockedHint=false")
                                 if self._last_lock_ts:
                                     self._last_cycle_completed_ts = self._last_unlock_ts

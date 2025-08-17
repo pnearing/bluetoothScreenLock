@@ -132,7 +132,7 @@ class ProximityMonitor:
                             matched = (dev_name.lower() == target_name) if dev_name else False
 
                         if matched:
-                            self._last_seen_ts = time.time()
+                            self._last_seen_ts = time.monotonic()
                             # Prefer RSSI from advertisement data; fallback to device.rssi if present
                             rssi_val = getattr(advertisement_data, "rssi", None)
                             if rssi_val is None:
@@ -152,7 +152,7 @@ class ProximityMonitor:
 
                 try:
                     while self._running:
-                        now = time.time()
+                        now = time.monotonic()
                         rssi = self._last_rssi
 
                         # Invalidate stale RSSI if we haven't seen the device recently
