@@ -1,3 +1,13 @@
+bluetooth-screen-lock (0.1.11-2) unstable; urgency=medium
+
+  [ Peter Nearing ]
+  * Harden autostart delay wrapper to avoid PATH-dependent tools.
+    Use absolute /bin/sh and /bin/sleep, resolve base64 with shutil.which
+    and require an absolute path; gracefully fall back to no delay if
+    base64 is unavailable. Eliminates PATH ambiguity at login.
+
+ -- Peter Nearing <me@peternearing.ca>  Sun, 17 Aug 2025 07:51:48 -0400
+
 bluetooth-screen-lock (0.1.11-1) unstable; urgency=medium
 
   [ Peter Nearing ]
