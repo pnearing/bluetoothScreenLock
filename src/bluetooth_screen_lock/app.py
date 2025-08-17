@@ -33,6 +33,11 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gio
+try:
+    # Optional dependency: used to safely parse .desktop Exec field
+    from xdg.DesktopEntry import DesktopEntry  # type: ignore
+except Exception:
+    DesktopEntry = None  # type: ignore
 from .file_ops import (
     open_autostart_dirfd,
     open_dir_nofollow,
@@ -830,6 +835,12 @@ class App:
                         with open(src, "r", encoding="utf-8") as sf:
                             # Autostart desktop file should be world-readable (0644)
                             write_replace_text_in_dir(dirfd, dst_name, sf.read(), mode=0o644)
+                            # Negate umask by explicitly setting final mode
+                            try:
+                                os.chmod(os.path.join(os.path.expanduser("~"), 
+                                                      ".config", "autostart", dst_name), 0o644)
+                            except Exception:
+                                pass
                     else:
                         # Fallback: generate a minimal desktop entry
                         exec_cmd = os.path.join(os.path.expanduser("~"), ".local", "bin", "bluetooth-screen-lock")
@@ -841,22 +852,76 @@ class App:
                             exec_cmd = (
                                 f"/bin/sh -c 'PYTHONPATH=\"{src_dir}:$PYTHONPATH\" exec python3 -m bluetooth_screen_lock'"
                             )
-                        exec_path = self._wrap_with_delay(exec_cmd)
-                        content = (
-                            "[Desktop Entry]\n"
-                            "Type=Application\n"
-                            "Name=Bluetooth Screen Lock\n"
-                            "Comment=Lock/unlock the screen based on Bluetooth proximity\n"
-                            f"Exec={exec_path}\n"
-                            "Icon=bluetooth-screen-lock\n"
-                            "Terminal=false\n"
-                            "Categories=Utility;GTK;\n"
-                            "X-GNOME-UsesNotifications=true\n"
-                            "X-GNOME-Autostart-enabled=true\n"
-                            "Hidden=false\n"
-                        )
-                        # Autostart desktop file should be world-readable (0644)
-                        write_replace_text_in_dir(dirfd, dst_name, content, mode=0o644)
+
+                        # Do NOT wrap delay here to avoid double-wrapping. Let _ensure_exec_delay() handle it.
+                        if DesktopEntry is not None:
+                            try:
+                                # Build desktop entry with pyxdg for correct key formatting
+                                de = DesktopEntry()  # type: ignore
+                                # Set required and common keys
+                                de.set('Type', 'Application')  # type: ignore
+                                de.set('Name', 'Bluetooth Screen Lock')  # type: ignore
+                                de.set('Comment', 'Lock/unlock the screen based on Bluetooth proximity')  # type: ignore
+                                de.set('Exec', exec_cmd)  # type: ignore
+                                de.set('Icon', 'bluetooth-screen-lock')  # type: ignore
+                                de.set('Terminal', 'false')  # type: ignore
+                                de.set('Categories', 'Utility;GTK;')  # type: ignore
+                                de.set('X-GNOME-UsesNotifications', 'true')  # type: ignore
+                                de.set('X-GNOME-Autostart-enabled', 'true')  # type: ignore
+                                de.set('Hidden', 'false')  # type: ignore
+                                # Assign filename and write
+                                dest_path = os.path.join(os.path.expanduser("~"), ".config", "autostart", dst_name)
+                                de.filename = dest_path  # type: ignore
+                                de.write()  # type: ignore
+                                # Ensure world-readable permissions
+                                try:
+                                    os.chmod(dest_path, 0o644)
+                                except Exception:
+                                    pass
+                            except Exception:
+                                # Fall back to manual text write if pyxdg fails
+                                content = (
+                                    "[Desktop Entry]\n"
+                                    "Type=Application\n"
+                                    "Name=Bluetooth Screen Lock\n"
+                                    "Comment=Lock/unlock the screen based on Bluetooth proximity\n"
+                                    f"Exec={exec_cmd}\n"
+                                    "Icon=bluetooth-screen-lock\n"
+                                    "Terminal=false\n"
+                                    "Categories=Utility;GTK;\n"
+                                    "X-GNOME-UsesNotifications=true\n"
+                                    "X-GNOME-Autostart-enabled=true\n"
+                                    "Hidden=false\n"
+                                )
+                                write_replace_text_in_dir(dirfd, dst_name, content, mode=0o644)
+                                # Negate umask by explicitly setting final mode
+                                try:
+                                    os.chmod(os.path.join(os.path.expanduser("~"), 
+                                                          ".config", "autostart", dst_name), 0o644)
+                                except Exception:
+                                    pass
+                        else:
+                            content = (
+                                "[Desktop Entry]\n"
+                                "Type=Application\n"
+                                "Name=Bluetooth Screen Lock\n"
+                                "Comment=Lock/unlock the screen based on Bluetooth proximity\n"
+                                f"Exec={exec_cmd}\n"
+                                "Icon=bluetooth-screen-lock\n"
+                                "Terminal=false\n"
+                                "Categories=Utility;GTK;\n"
+                                "X-GNOME-UsesNotifications=true\n"
+                                "X-GNOME-Autostart-enabled=true\n"
+                                "Hidden=false\n"
+                            )
+                            # Autostart desktop file should be world-readable (0644)
+                            write_replace_text_in_dir(dirfd, dst_name, content, mode=0o644)
+                            # Negate umask by explicitly setting final mode
+                            try:
+                                os.chmod(os.path.join(os.path.expanduser("~"), 
+                                                      ".config", "autostart", dst_name), 0o644)
+                            except Exception:
+                                pass
                     # Ensure autostart flags and adjust Exec for delay if needed
                     # (Read and write anchored to dirfd)
                     self._ensure_autostart_flags(os.path.join(os.path.expanduser("~"), ".config", "autostart", dst_name))
@@ -902,6 +967,11 @@ class App:
             try:
                 # Preserve world-readability for desktop entries
                 write_replace_text_in_dir(dirfd, name, "\n".join(lines) + "\n", mode=0o644)
+                # Negate umask by explicitly setting final mode
+                try:
+                    os.chmod(desktop_path, 0o644)
+                except Exception:
+                    pass
             finally:
                 os.close(dirfd)
         except Exception:
@@ -910,6 +980,37 @@ class App:
     def _ensure_exec_delay(self, desktop_path: str) -> None:
         """Ensure the Exec line includes the configured delay if any."""
         try:
+            delay = max(0, int(getattr(self._cfg, "start_delay_sec", 0)))
+            if delay <= 0:
+                return
+
+            # Preferred path: use xdg.DesktopEntry to correctly handle Exec parsing and field codes
+            if DesktopEntry is not None:
+                try:
+                    de = DesktopEntry(desktop_path)  # type: ignore
+                    # Some implementations require explicit parse; calling constructor already parses
+                    try:
+                        de.parse(desktop_path)  # type: ignore
+                    except Exception:
+                        pass
+                    exec_val = de.getExec()  # type: ignore
+                    # Build a wrapper that preserves field code expansions and argument splitting:
+                    # /bin/sh -c 'sleep D; exec "$0" "$@"' ORIGINAL_ARGS...
+                    # The launcher substitutes field codes in ORIGINAL and passes them as subsequent args.
+                    wrapped = f"/bin/sh -c 'sleep {delay}; exec \"$0\" \"$@\"' {exec_val}"
+                    de.set('Exec', wrapped)  # type: ignore
+                    de.write()  # type: ignore
+                    # Ensure world-readable permissions irrespective of umask
+                    try:
+                        os.chmod(desktop_path, 0o644)
+                    except Exception:
+                        pass
+                    return
+                except Exception:
+                    # Fall back to manual edit below
+                    logger.debug("xdg.DesktopEntry handling failed; falling back to manual Exec rewrite", exc_info=True)
+
+            # Fallback: minimally edit only Exec= line while preserving any % field codes
             autostart_dir = os.path.dirname(desktop_path)
             name = os.path.basename(desktop_path)
             dirfd = open_dir_nofollow(autostart_dir)
@@ -920,24 +1021,24 @@ class App:
                 lines = content.splitlines()
             finally:
                 os.close(dirfd)
+
             for i, line in enumerate(lines):
                 if line.startswith("Exec="):
                     orig = line[len("Exec="):]
-                    # Extract the actual command we want to run, ignoring previous wrapper
-                    # If it already includes a sleep wrapper, do a simple replace.
-                    if "/bin/sh -c" in orig or "bash -lc" in orig:
-                        # naive approach: replace entire line with rebuilt wrapper using the tail command as-is
-                        # Try to find the last ';' and take the right side as command, else keep as-is
-                        cmd = orig
-                    else:
-                        cmd = orig
-                    wrapped = self._wrap_with_delay(cmd)
+                    # Preserve field codes by placing ORIGINAL after the -c script argument
+                    wrapped = f"/bin/sh -c 'sleep {delay}; exec \"$0\" \"$@\"' {orig}"
                     lines[i] = "Exec=" + wrapped
                     break
-            # Write back atomically via dirfd
+
+            # Write back atomically
             dirfd = open_dir_nofollow(autostart_dir)
             try:
-                write_replace_text_in_dir(dirfd, name, "\n".join(lines) + "\n")
+                write_replace_text_in_dir(dirfd, name, "\n".join(lines) + "\n", mode=0o644)
+                # Ensure world-readable permissions irrespective of umask
+                try:
+                    os.chmod(desktop_path, 0o644)
+                except Exception:
+                    pass
             finally:
                 os.close(dirfd)
         except Exception:
