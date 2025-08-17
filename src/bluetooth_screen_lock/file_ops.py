@@ -115,6 +115,13 @@ def write_replace_text_in_dir(dirfd: int, dst_name: str, content: str, *, mode: 
             pass
         raise
     os.replace(tmp_name, dst_name, src_dir_fd=dirfd, dst_dir_fd=dirfd)
+    # Best-effort: fsync the directory to make the metadata update (rename) durable
+    # so the entry survives a crash/power-loss. Some filesystems may not support
+    # directory fsync; ignore errors to avoid surfacing non-critical failures.
+    try:
+        os.fsync(dirfd)
+    except Exception:
+        pass
 
 
 def unlink_in_dir(dirfd: int, name: str) -> None:

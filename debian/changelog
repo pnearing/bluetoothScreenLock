@@ -10,8 +10,10 @@ bluetooth-screen-lock (0.1.11-2) unstable; urgency=medium
     Remove explicit -1 (infinite) call-site usages so new defaults apply.
   * Privacy: Redact MAC addresses in BLE detection logs in monitor to avoid
     logging full device addresses at INFO/DEBUG; use _redact_mac helper.
+  * Autostart writes: fsync the directory after atomic os.replace() to ensure
+    the rename is durable across crashes/power loss.
 
- -- Peter Nearing <me@peternearing.ca>  Sun, 17 Aug 2025 07:59:15 -0400
+ -- Peter Nearing <me@peternearing.ca>  Sun, 17 Aug 2025 08:00:57 -0400
 
 bluetooth-screen-lock (0.1.11-1) unstable; urgency=medium
 
