@@ -1,3 +1,15 @@
+bluetooth-screen-lock (0.1.13-1) unstable; urgency=medium
+
+  [ Peter Nearing ]
+  * login1 unlock monitoring: when GetSessionByPID fails (e.g., app menu
+    launch without a session association), attempt GetSession using
+    XDG_SESSION_ID; otherwise, skip login1 monitoring quietly.
+  * Reduce log noise: downgrade exceptions to warnings for expected
+    NoSessionForPID/fallback failures; primary ScreenSaver-based unlock
+    monitoring remains unchanged.
+
+ -- Peter Nearing <me@peternearing.ca>  Sun, 17 Aug 2025 08:13:41 -0400
+
 bluetooth-screen-lock (0.1.12-1) unstable; urgency=medium
 
   [ Peter Nearing ]

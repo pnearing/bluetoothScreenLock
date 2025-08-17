@@ -932,8 +932,30 @@ class App:
             )
             session_path = res.unpack()[0]
         except Exception:
+            # Some launch environments (certain desktop menu launchers, sandboxed contexts,
+            # or detached processes) may yield NoSessionForPID for our PID. In that case,
+            # try a pragmatic fallback using XDG_SESSION_ID if present, otherwise skip
+            # login1 monitoring quietly (we still have ScreenSaver signals above).
             session_path = None
-            logger.exception("login1 GetSessionByPID failed; skipping login1 unlock monitoring")
+            try:
+                xdg_sid = os.environ.get("XDG_SESSION_ID")
+                if xdg_sid:
+                    res = self._system_bus.call_sync(
+                        "org.freedesktop.login1",
+                        "/org/freedesktop/login1",
+                        "org.freedesktop.login1.Manager",
+                        "GetSession",
+                        GLib.Variant("(s)", (xdg_sid,)),
+                        None,
+                        Gio.DBusCallFlags.NONE,
+                        2000,
+                        None,
+                    )
+                    session_path = res.unpack()[0]
+                else:
+                    logger.warning("login1 GetSessionByPID failed and XDG_SESSION_ID is unset; skipping login1 unlock monitoring")
+            except Exception:
+                logger.warning("login1 session resolution fallback (GetSession) failed; skipping login1 unlock monitoring")
 
         if session_path:
             def _on_login1_properties(_conn, _sender, _object_path, _interface, _member, parameters):
