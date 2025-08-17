@@ -89,8 +89,11 @@ def _setup_logging(
                         pass
             except Exception:
                 pass
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-            os.close(fd)
+            try:
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+                os.close(fd)
+            except Exception:
+                pass
             fh = RotatingFileHandler(path, maxBytes=int(file_max_bytes), backupCount=int(file_backups))
             fh.setLevel(level if isinstance(level, int) else logging._nameToLevel.get(str(level).upper(), logging.INFO))
             fh.setFormatter(fmt)
