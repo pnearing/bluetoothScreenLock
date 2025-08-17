@@ -95,7 +95,7 @@ class App:
             on_about=self._open_about,
             locking_enabled=bool(getattr(self._cfg, "locking_enabled", True)),
         )
-
+        
         # Ensure autostart entry reflects current config on startup
         try:
             self._apply_autostart(self._cfg.autostart)

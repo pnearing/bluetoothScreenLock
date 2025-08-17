@@ -119,7 +119,7 @@ class ProximityMonitor:
                 def on_detect(device, advertisement_data):
                     try:
                         target_mac = (self._config.device_mac or "").upper()
-                        name_sub = (self._config.device_name or "").strip().lower()
+                        target_name = (self._config.device_name or "").strip().lower()
                         dev_addr = (getattr(device, "address", "") or "").upper()
                         dev_name = (getattr(device, "name", "") or "").strip()
 
@@ -127,9 +127,9 @@ class ProximityMonitor:
                         if target_mac:
                             matched = (dev_addr == target_mac)
                         # Only use name fallback when no MAC is configured
-                        if not target_mac and name_sub and not matched:
+                        if not target_mac and target_name and not matched:
                             # Fallback: exact name equality (case-insensitive)
-                            matched = (dev_name.lower() == name_sub) if dev_name else False
+                            matched = (dev_name.lower() == target_name) if dev_name else False
 
                         if matched:
                             self._last_seen_ts = time.time()
