@@ -46,6 +46,7 @@ from .config import load_config, save_config, Config
 from .monitor import ProximityMonitor, MonitorConfig
 from .indicator import TrayIndicator
 from .settings import SettingsWindow, SettingsResult
+from . import __version__
 
 
 logger = logging.getLogger(__name__)
@@ -90,6 +91,7 @@ class App:
             on_quit=self.quit,
             on_lock_now=self._lock_screen,
             on_toggle_locking=self._on_toggle_locking,
+            on_about=self._open_about,
             locking_enabled=bool(getattr(self._cfg, "locking_enabled", True)),
         )
 
@@ -255,6 +257,38 @@ class App:
         except Exception:
             logger.debug("Lock command failed: %s", " ".join(args) if args else "<none>", exc_info=True)
             return False
+
+    def _open_about(self) -> None:
+        """Show the About dialog using GTK's AboutDialog.
+
+        - Uses the themed icon name `bluetooth-screen-lock` for the logo.
+        - Displays the package version from `__version__`.
+        - Sets Apache-2.0 license metadata and project website.
+        The dialog is destroyed on any response to avoid lingering windows.
+        """
+        try:
+            dialog = Gtk.AboutDialog()
+            dialog.set_program_name("Bluetooth Screen Lock")
+            dialog.set_version(__version__)
+            dialog.set_comments(
+                "Lock/unlock the screen based on Bluetooth proximity (GNOME/GTK tray)."
+            )
+            try:
+                dialog.set_logo_icon_name("bluetooth-screen-lock")
+            except Exception:
+                pass
+            dialog.set_authors(["Peter Nearing and contributors"])
+            dialog.set_copyright("Copyright 2025 Peter Nearing")
+            try:
+                dialog.set_license_type(Gtk.License.APACHE_2_0)
+            except Exception:
+                pass
+            dialog.set_website("https://github.com/pnearing/bluetoothScreenLock")
+            dialog.set_website_label("Project homepage")
+            dialog.connect("response", lambda d, _r: d.destroy())
+            dialog.show_all()
+        except Exception:
+            logger.exception("Failed to open About dialog")
 
     def _dbus_call_reply(
         self,

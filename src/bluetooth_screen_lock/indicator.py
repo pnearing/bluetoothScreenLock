@@ -63,6 +63,7 @@ class TrayIndicator:
         on_quit: Callable[[], None],
         on_lock_now: Optional[Callable[[], None]] = None,
         on_toggle_locking: Optional[Callable[[bool], None]] = None,
+        on_about: Optional[Callable[[], None]] = None,
         locking_enabled: bool = True,
     ) -> None:
         self._app_id = app_id
@@ -70,6 +71,7 @@ class TrayIndicator:
         self._on_quit = on_quit
         self._on_lock_now = on_lock_now
         self._on_toggle_locking = on_toggle_locking
+        self._on_about = on_about
 
         self._status_label = Gtk.MenuItem(label="Status: Idle")
         self._status_label.set_sensitive(False)
@@ -90,6 +92,10 @@ class TrayIndicator:
         self._settings_item = Gtk.MenuItem(label="Settings…")
         self._settings_item.connect("activate", self._on_settings)
 
+        # Optional About dialog entry
+        self._about_item = Gtk.MenuItem(label="About…")
+        self._about_item.connect("activate", self._on_about_activate)
+
         self._quit_item = Gtk.MenuItem(label="Quit")
         self._quit_item.connect("activate", self._on_quit_activate)
 
@@ -100,6 +106,7 @@ class TrayIndicator:
         menu.append(self._lock_item)
         menu.append(self._lock_toggle)
         menu.append(self._settings_item)
+        menu.append(self._about_item)
         menu.append(self._quit_item)
         menu.show_all()
 
@@ -121,6 +128,18 @@ class TrayIndicator:
         """Quit the application via the provided callback."""
         logger.info("Quit menu clicked")
         self._on_quit()
+
+    def _on_about_activate(self, _item: Gtk.MenuItem) -> None:
+        """Open the About dialog via the provided callback.
+
+        This is optional; if no handler was provided, the item is a no-op.
+        """
+        logger.info("About menu clicked")
+        try:
+            if self._on_about is not None:
+                self._on_about()
+        except Exception:
+            logger.exception("Failed to open About dialog")
 
     def set_status(self, text: str) -> None:
         """Update the status line in the tray menu in a thread-safe way."""
@@ -180,4 +199,10 @@ class TrayIndicator:
                     self._lock_item.set_tooltip_text(tip)
             except Exception:
                 pass
+        GLib.idle_add(update)
+
+    def set_about_enabled(self, enabled: bool) -> None:
+        """Enable/disable the About menu item (thread-safe)."""
+        def update() -> None:
+            self._about_item.set_sensitive(bool(enabled))
         GLib.idle_add(update)
