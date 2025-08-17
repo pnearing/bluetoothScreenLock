@@ -803,10 +803,20 @@ class App:
             # Fallback to no-delay if encoding somehow fails (very unlikely)
             return cmd
         # The single-quoted script does not interpolate 'encoded'; it is passed as $1.
-        # We decode with base64 -d and exec it using a fresh 'sh -c'.
+        # SECURITY: avoid PATH lookups for helper tools (sleep/base64/sh). Use absolute
+        # binaries and gracefully fall back to no-delay if base64 is unavailable.
+        # This mitigates the risk of a malicious early-path binary being executed at login.
+        sh_bin = "/bin/sh"
+        sleep_bin = "/bin/sleep"
+        base64_bin = shutil.which("base64") or "/usr/bin/base64"
+        # If base64 isn't an absolute existing path, do not attempt the wrapper.
+        if not os.path.isabs(base64_bin) or not os.path.exists(base64_bin):
+            return cmd
+        # Decode the payload with an absolute base64 and exec via absolute sh.
         return (
-            f"/bin/sh -c 'sleep {delay}; CMD=$(printf %s \"$1\" | base64 -d); exec sh -c \"$CMD\"'"
-            f" dummy {encoded}"
+            f"{sh_bin} -c '{sleep_bin} {delay}; "
+            f"CMD=$(printf %s \"$1\" | {base64_bin} -d); "
+            f"exec {sh_bin} -c \"$CMD\"' dummy {encoded}"
         )
 
     def run(self) -> None:
