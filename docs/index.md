@@ -3,8 +3,9 @@
 Welcome to the documentation for Bluetooth Screen Lock — a GNOME/GTK tray app that locks your screen based on Bluetooth proximity using RSSI.
 
 - GNOME/GTK tray (no Qt)
+- Tabbed Settings dialog: General, Near Command, Advanced
 - RSSI-based proximity with grace period and hysteresis
-- Optional command on return (NEAR)
+- Optional Near Command on return (Execution and Timing controls: dwell, timeout, kill grace)
 - Autostart support with optional start delay
 
 ## Get Started

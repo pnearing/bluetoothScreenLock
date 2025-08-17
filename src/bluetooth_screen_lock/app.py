@@ -26,6 +26,7 @@ import threading
 import logging
 import time
 import stat
+import signal
 from typing import Optional
 
 import gi
@@ -513,18 +514,62 @@ class App:
                 display = "<unparsed>"
             logger.info("Running near command: %s", display)
             # Run in background, do not wait. Default: no shell. Opt-in via cfg.near_shell=True.
+            # If a timeout is configured, we create a new process group and spawn
+            # a watchdog that will terminate the group on timeout to avoid hung
+            # helper processes lingering. This keeps the GTK app responsive.
+            timeout = max(0, int(getattr(self._cfg, 'near_timeout_sec', 0)))
+            kill_grace = max(1, int(getattr(self._cfg, 'near_kill_grace_sec', 5)))
+
+            def _start_watchdog(proc: subprocess.Popen) -> None:
+                if timeout <= 0:
+                    return
+                def _watch() -> None:
+                    try:
+                        # Wait for process to finish up to timeout
+                        proc.wait(timeout=timeout)
+                        return
+                    except subprocess.TimeoutExpired:
+                        pass
+                    try:
+                        pgid = os.getpgid(proc.pid)
+                    except Exception:
+                        pgid = None
+                    try:
+                        if pgid is not None:
+                            os.killpg(pgid, signal.SIGTERM)
+                        else:
+                            proc.terminate()
+                        # Wait for graceful shutdown
+                        try:
+                            proc.wait(timeout=kill_grace)
+                            return
+                        except subprocess.TimeoutExpired:
+                            pass
+                        # Force kill if still running
+                        if pgid is not None:
+                            os.killpg(pgid, signal.SIGKILL)
+                        else:
+                            proc.kill()
+                    except ProcessLookupError:
+                        # Already exited
+                        return
+                    except Exception:
+                        logger.debug("Watchdog failed to kill near command", exc_info=True)
+                threading.Thread(target=_watch, name="near-cmd-watchdog", daemon=True).start()
             if use_shell:
                 # Safer shell execution: pin shell path, constrain PATH, close FDs.
                 sh_bin = "/bin/sh"
                 safe_env = os.environ.copy()
                 # Keep PATH minimal to reduce ambiguity. Adjust if needed for user's script.
                 safe_env["PATH"] = "/usr/bin:/bin"
-                subprocess.Popen(
+                proc = subprocess.Popen(
                     [sh_bin, "-c", cmd],
                     executable=sh_bin,
                     env=safe_env,
                     close_fds=True,
+                    preexec_fn=os.setsid,
                 )
+                _start_watchdog(proc)
             else:
                 argv = shlex.split(cmd)
                 if not argv:
@@ -556,7 +601,13 @@ class App:
                     logger.debug("Stat/access check failed for %s", prog, exc_info=True)
                     return
                 # Safe to execute without PATH search
-                subprocess.Popen(argv, executable=prog, close_fds=True)
+                proc = subprocess.Popen(
+                    argv,
+                    executable=prog,
+                    close_fds=True,
+                    preexec_fn=os.setsid,
+                )
+                _start_watchdog(proc)
         except Exception:
             logger.exception("Failed to run near command")
 
@@ -580,6 +631,8 @@ class App:
             near_dwell_sec=int(getattr(self._cfg, 'near_dwell_sec', 0)),
             cycle_rate_limit_min=int(getattr(self._cfg, 'cycle_rate_limit_min', 0)),
             near_shell_warned=bool(getattr(self._cfg, 'near_shell_warned', False)),
+            near_timeout_sec=int(getattr(self._cfg, 'near_timeout_sec', 0)),
+            near_kill_grace_sec=int(getattr(self._cfg, 'near_kill_grace_sec', 5)),
         )
         win = SettingsWindow(initial)
         win.set_transient_for(None)
@@ -644,6 +697,8 @@ class App:
             self._cfg.file_logging_enabled = bool(getattr(result, 'file_logging_enabled', getattr(self._cfg, 'file_logging_enabled', False)))
             self._cfg.near_dwell_sec = int(getattr(result, 'near_dwell_sec', getattr(self._cfg, 'near_dwell_sec', 0)))
             self._cfg.cycle_rate_limit_min = int(getattr(result, 'cycle_rate_limit_min', getattr(self._cfg, 'cycle_rate_limit_min', 0)))
+            self._cfg.near_timeout_sec = int(getattr(result, 'near_timeout_sec', getattr(self._cfg, 'near_timeout_sec', 0)))
+            self._cfg.near_kill_grace_sec = int(getattr(result, 'near_kill_grace_sec', getattr(self._cfg, 'near_kill_grace_sec', 5)))
 
             # One-time UI warning when enabling shell execution for near_command.
             # Also handle migration: if previously true but not warned, and user didn't toggle now.

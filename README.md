@@ -4,11 +4,14 @@ Lock your screen automatically when your selected Bluetooth device (e.g., your p
 
 ## Features
 - __GNOME/GTK tray app__ with a status indicator and Settings.
+- __Tabbed Settings__ dialog: General, Near Command, Advanced.
 - __RSSI preferred__ proximity detection via Bleak; configurable threshold and grace period.
 - Locks screen via `loginctl lock-session` (systemd-logind).
 - __Re-lock delay after unlock__: optional cooldown window after an actual system unlock to prevent immediate auto-locks. Unlock detection via GNOME ScreenSaver, freedesktop ScreenSaver, and systemd-logind.
 - __Safe device matching__: MAC address preferred; optional exact name fallback (with tray warning).
-- __Near dwell before action__: optionally require the device to remain NEAR for N seconds before running the near action.
+- __Near Command__ (on return) with dedicated tab and headers:
+  - Execution: command, optional shell mode.
+  - Timing: dwell, timeout, and kill grace controls.
 - __Global cycle rate limit__: optionally limit to at most one lock+unlock cycle per M minutes to avoid churn.
 
 ## Requirements
@@ -54,7 +57,7 @@ python3 -m bluetooth_screen_lock
 /usr/bin/bluetooth-screen-lock
 ```
 
-You should see a tray icon (wireless icon). Open Settings to:
+You should see a tray icon (wireless icon). Open Settings (tabs: General, Near Command, Advanced) to:
 - Scan for nearby BLE devices and select your phone.
 - Set RSSI threshold (e.g., -75 dBm) and grace period (seconds).
  - Optionally set a Re-lock delay (seconds) to suppress auto-locks right after you unlock.
@@ -89,13 +92,17 @@ Notes:
 - Stdout shows DEBUG/INFO; stderr shows WARNING+.
 - When run as a user systemd service, logs are also available via the journal (`journalctl --user -u bluetooth-screen-lock`).
 
-## Near-action command
+## Near-action command (Near Command tab)
 
 - Optional "Near command" runs when your device transitions from away to near (after having been away at least once). Leave blank to disable.
 - By default, commands run safely without a shell (arguments are split like a terminal would). This avoids shell injection risks.
 - If you need shell features (pipes, redirects, env var expansion), enable the checkbox "Run command in shell (advanced)" under the command box in Settings.
+- Timing controls are under Settings → Near Command → Timing:
+  - __Near dwell (sec)__: require device to remain NEAR before running.
+  - __Near command timeout (sec)__: kill long-running commands after N seconds (0 disables).
+  - __Near command kill grace (sec)__: wait this long after SIGTERM before SIGKILL when a timeout occurs.
 
-You can add an optional __Near dwell__ in Settings → "Near dwell (sec)". When set > 0, the app requires your device to remain NEAR for the configured number of seconds before running the near command. This helps avoid false triggers due to brief signal spikes.
+You can fine-tune behavior in the Near Command tab. __Near dwell__ helps avoid false triggers due to brief signal spikes; __timeout__ and __kill grace__ ensure commands don't hang indefinitely.
 
 Examples:
 

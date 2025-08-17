@@ -78,6 +78,12 @@ class Config:
     cycle_rate_limit_min : int
         Global rate limit window in minutes. At most one lock+unlock cycle
         is allowed per window. 0 disables the rate limit.
+    near_timeout_sec : int
+        Maximum time to allow the near command to run before it is forcefully
+        terminated. 0 disables the timeout (default).
+    near_kill_grace_sec : int
+        After sending SIGTERM on timeout, wait this many seconds before
+        sending SIGKILL if the process group has not exited.
     """
     device_mac: Optional[str] = None  # e.g., "AA:BB:CC:DD:EE:FF"
     device_name: Optional[str] = None
@@ -100,6 +106,9 @@ class Config:
     near_dwell_sec: int = 0
     # Global rate-limit: allow at most one lock+unlock cycle per M minutes (0 = disabled)
     cycle_rate_limit_min: int = 0
+    # Timeout behavior for near_command: 0 disables timeout; grace controls SIGKILL delay
+    near_timeout_sec: int = 0
+    near_kill_grace_sec: int = 5
     # --- File logging options ---
     # Master toggle to enable writing logs to a rotating file in addition to stdout/stderr
     file_logging_enabled: bool = False
@@ -193,6 +202,15 @@ def load_config() -> Config:
             cfg.cycle_rate_limit_min = max(0, min(240, int(getattr(cfg, 'cycle_rate_limit_min', 0))))
         except Exception:
             cfg.cycle_rate_limit_min = 0
+        # Timeout/clamping for near command execution
+        try:
+            cfg.near_timeout_sec = max(0, min(3600, int(getattr(cfg, 'near_timeout_sec', 0))))
+        except Exception:
+            cfg.near_timeout_sec = 0
+        try:
+            cfg.near_kill_grace_sec = max(1, min(60, int(getattr(cfg, 'near_kill_grace_sec', 5))))
+        except Exception:
+            cfg.near_kill_grace_sec = 5
         logger.debug("Config loaded from %s", CONFIG_PATH)
         return cfg
     except Exception:

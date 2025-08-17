@@ -1,3 +1,16 @@
+bluetooth-screen-lock (0.1.17-1) unstable; urgency=medium
+
+  [ Peter Nearing ]
+  * Bump upstream version to 0.1.17.
+  * Add man page for bluetooth-screen-lock command.
+  * Add Near Command timeout and kill grace settings.
+  * Settings: reorganize Preferences into Notebook tabs (General, Near Command, Advanced).
+  * Move all Near Command options to a dedicated tab; add "Execution" and "Timing" headers.
+  * Wire near command timeout and kill grace through Settings; persist and apply in app.
+  * Keep existing behaviors and tooltips; general polish with clearer grouping.
+
+ -- Peter Nearing <me@peternearing.ca>  Sun, 17 Aug 2025 10:19:30 -0400
+
 bluetooth-screen-lock (0.1.16-1) unstable; urgency=medium
 
   [ Peter Nearing ]

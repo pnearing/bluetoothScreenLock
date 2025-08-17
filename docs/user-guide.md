@@ -31,19 +31,27 @@ To autostart at login, use the Settings dialog's "Start at login" checkbox.
 
 ## Configure
 
-Open the tray menu and click "Settings…".
+Open the tray menu and click "Settings…" (tabs: General, Near Command, Advanced).
 
-- Device: Scan and select your phone. Prefer MAC over name matching to avoid spoofing.
-- RSSI threshold (dBm): Typical near is around -50 to -65; far is -80 to -90. Start around -75.
-- Grace period (sec): How long RSSI must stay below threshold before locking (avoid dips).
-- Hysteresis (dB): Extra dB above threshold required to treat as NEAR; reduces flapping.
-- Stale RSSI timeout: Consider RSSI unknown if device not seen for this many seconds.
-- Near debounce (scans): Require N consecutive scans above near trigger to treat as NEAR.
-- Re-lock delay (sec): Suppress auto-locks briefly after you unlock.
-- Near dwell (sec): Require the device to remain NEAR for N seconds before running the near command.
-- Cycle rate limit (min): Allow at most one lock+unlock cycle per M minutes to avoid churn.
-- Start at login / Start delay: Manage autostart .desktop creation and optional delay.
-- Optional near command: Run a command when device becomes NEAR (e.g., dismiss screensaver).
+- Device: Scan and select your phone (General). Prefer MAC over name matching to avoid spoofing.
+- RSSI threshold (dBm): Typical near is around -50 to -65; far is -80 to -90. Start around -75 (General).
+- Grace period (sec): How long RSSI must stay below threshold before locking (avoid dips) (General).
+- Hysteresis (dB): Extra dB above threshold required to treat as NEAR; reduces flapping (Advanced).
+- Stale RSSI timeout: Consider RSSI unknown if device not seen for this many seconds (Advanced).
+- Near debounce (scans): Require N consecutive scans above near trigger to treat as NEAR (Advanced).
+- Re-lock delay (sec): Suppress auto-locks briefly after you unlock (Advanced).
+- Cycle rate limit (min): Allow at most one lock+unlock cycle per M minutes to avoid churn (Advanced).
+- Start at login / Start delay: Manage autostart .desktop creation and optional delay (General).
+
+Near Command tab:
+
+- Execution:
+  - Optional near command: run when device becomes NEAR (e.g., dismiss screensaver).
+  - Run command in shell (advanced) for pipes/redirection if needed.
+- Timing:
+  - Near dwell (sec): require device to remain NEAR before running.
+  - Near command timeout (sec): kill long-running commands after N seconds (0 disables).
+  - Near command kill grace (sec): wait after SIGTERM before SIGKILL when a timeout occurs.
 
 The current RSSI is shown live to help pick a suitable threshold.
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bluetooth-screen-lock"
-version = "0.1.16"
+version = "0.1.17"
 description = "Lock/unlock the screen based on Bluetooth proximity (GNOME/GTK tray)"
 readme = "README.md"
 authors = [
