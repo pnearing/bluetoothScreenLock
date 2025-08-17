@@ -1,3 +1,4 @@
+## This was mostly written using AI, a mix of claude 4 and gpt-5
 # Bluetooth Screen Lock (GNOME)
 
 Lock your screen automatically when your selected Bluetooth device (e.g., your phone) goes out of range. Prefers RSSI-based proximity using BLE advertisements, with a fallback to not-seen timeout.

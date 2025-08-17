@@ -11,6 +11,15 @@ case "$1" in
                 [ -d "$dir" ] && gtk-update-icon-cache -q "$dir" || true
             done
         fi
+        # Clean up legacy user systemd unit if present from older packages
+        UNIT="/usr/lib/systemd/user/bluetooth-screen-lock.service"
+        DROPIN_DIR="/usr/lib/systemd/user/bluetooth-screen-lock.service.d"
+        if [ -f "$UNIT" ]; then
+            rm -f "$UNIT" || true
+        fi
+        if [ -d "$DROPIN_DIR" ]; then
+            rmdir --ignore-fail-on-non-empty "$DROPIN_DIR" 2>/dev/null || true
+        fi
     ;;
 	esac
 

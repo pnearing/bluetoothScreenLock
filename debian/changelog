@@ -1,3 +1,13 @@
+bluetooth-screen-lock (0.1.18-1) unstable; urgency=medium
+
+  [ Peter Nearing ]
+  * Drop systemd autostart from packaging and documentation.
+  * postrm: remove legacy user systemd unit if present.
+  * Update docs to GNOME autostart via .desktop only.
+  * Bump upstream version to 0.1.18.
+
+ -- Peter Nearing <me@peternearing.ca>  Sun, 17 Aug 2025 12:01:49 -0400
+
 bluetooth-screen-lock (0.1.17-1) unstable; urgency=medium
 
   [ Peter Nearing ]
