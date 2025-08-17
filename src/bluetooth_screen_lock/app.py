@@ -815,10 +815,15 @@ class App:
         if not os.path.isabs(base64_bin) or not os.path.exists(base64_bin):
             return cmd
         # Decode the payload with an absolute base64 and exec via absolute sh.
+        # Pass the original command as a second argument, safely single-quoted, so that
+        # if the base64 decode yields an empty string at runtime, we fall back to it.
+        # Single-quote escaping pattern: close ', insert '"'"', reopen '
+        raw_arg = cmd.replace("'", "'\"'\"'")
         return (
             f"{sh_bin} -c '{sleep_bin} {delay}; "
-            f"CMD=$(printf %s \"$1\" | {base64_bin} -d); "
-            f"exec {sh_bin} -c \"$CMD\"' dummy {encoded}"
+            f"CMD=$(printf %s \"$1\" | {base64_bin} -d 2>/dev/null); "
+            f"[ -z \"$CMD\" ] && CMD=\"$2\"; "
+            f"exec {sh_bin} -c \"$CMD\"' dummy {encoded} '{raw_arg}'"
         )
 
     def run(self) -> None:
