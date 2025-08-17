@@ -86,6 +86,15 @@ class SettingsWindow(Gtk.Window):
         notebook.append_page(near_grid, Gtk.Label(label="Near Command"))
         notebook.append_page(adv_grid, Gtk.Label(label="Advanced"))
 
+        # General tab section header: Device
+        hdr_device = Gtk.Label()
+        try:
+            hdr_device.set_markup("<b>Device</b>")
+        except Exception:
+            hdr_device.set_text("Device")
+        hdr_device.set_xalign(0)
+        gen_grid.attach(hdr_device, 0, 0, 4, 1)
+
         # Device selection
         lbl_device = Gtk.Label(label="Device:")
         lbl_device.set_xalign(0)
@@ -93,7 +102,7 @@ class SettingsWindow(Gtk.Window):
             "Select the phone/device to monitor."
             " If your phone uses randomized MACs, pair it first or keep the screen on while scanning."
         )
-        gen_grid.attach(lbl_device, 0, 0, 1, 1)
+        gen_grid.attach(lbl_device, 0, 1, 1, 1)
 
         self.cmb_devices = Gtk.ComboBoxText()
         self.cmb_devices.set_hexpand(True)
@@ -101,7 +110,7 @@ class SettingsWindow(Gtk.Window):
             "Choose the target device. Shown as Name (MAC)."
             " If empty, click Scan Devices."
         )
-        gen_grid.attach(self.cmb_devices, 1, 0, 2, 1)
+        gen_grid.attach(self.cmb_devices, 1, 1, 2, 1)
         self.cmb_devices.connect("changed", self._on_device_changed)
 
         btn_scan = Gtk.Button(label="Scan Devices")
@@ -110,7 +119,7 @@ class SettingsWindow(Gtk.Window):
             "Search for nearby BLE devices."
             " Ensure Bluetooth is on and the device is advertising (screen on)."
         )
-        gen_grid.attach(btn_scan, 3, 0, 1, 1)
+        gen_grid.attach(btn_scan, 3, 1, 1, 1)
 
         # Inline warning for name-only matching fallback
         self.lbl_name_fallback = Gtk.Label()
@@ -122,7 +131,16 @@ class SettingsWindow(Gtk.Window):
             self.lbl_name_fallback.get_style_context().add_class("dim-label")
         except Exception:
             pass
-        gen_grid.attach(self.lbl_name_fallback, 0, 1, 4, 1)
+        gen_grid.attach(self.lbl_name_fallback, 0, 2, 4, 1)
+
+        # General tab section header: Proximity
+        hdr_proximity = Gtk.Label()
+        try:
+            hdr_proximity.set_markup("<b>Proximity</b>")
+        except Exception:
+            hdr_proximity.set_text("Proximity")
+        hdr_proximity.set_xalign(0)
+        gen_grid.attach(hdr_proximity, 0, 3, 4, 1)
 
         # Current RSSI display
         lbl_rssi_cur_title = Gtk.Label(label="Current RSSI:")
@@ -130,14 +148,14 @@ class SettingsWindow(Gtk.Window):
         lbl_rssi_cur_title.set_tooltip_text(
             "Live RSSI for the selected device (in dBm)."
         )
-        gen_grid.attach(lbl_rssi_cur_title, 0, 2, 1, 1)
+        gen_grid.attach(lbl_rssi_cur_title, 0, 4, 1, 1)
 
         self.lbl_rssi_current = Gtk.Label(label="— dBm")
         self.lbl_rssi_current.set_xalign(0)
         self.lbl_rssi_current.set_tooltip_text(
             "Live measured signal strength: closer = higher (e.g., -50), farther = lower (e.g., -90)."
         )
-        gen_grid.attach(self.lbl_rssi_current, 1, 2, 3, 1)
+        gen_grid.attach(self.lbl_rssi_current, 1, 4, 3, 1)
 
         # RSSI threshold
         lbl_rssi = Gtk.Label(label="RSSI threshold (dBm):")
@@ -147,7 +165,7 @@ class SettingsWindow(Gtk.Window):
             " closer = higher (e.g., -50), farther = lower (e.g., -90)."
             " Screen locks when RSSI stays below this threshold for the grace period."
         )
-        gen_grid.attach(lbl_rssi, 0, 3, 2, 1)
+        gen_grid.attach(lbl_rssi, 0, 5, 2, 1)
 
         adjustment_rssi = Gtk.Adjustment(value=initial.rssi_threshold, lower=-100, upper=-30, step_increment=1)
         self.spn_rssi = Gtk.SpinButton()
@@ -157,7 +175,7 @@ class SettingsWindow(Gtk.Window):
             "Typical range: -90 (far) to -50 (near)."
             " Choose a threshold like -75 dBm for conservative locking."
         )
-        gen_grid.attach(self.spn_rssi, 2, 3, 2, 1)
+        gen_grid.attach(self.spn_rssi, 2, 5, 2, 1)
 
         # Grace period
         lbl_grace = Gtk.Label(label="Grace period (sec):")
@@ -166,7 +184,7 @@ class SettingsWindow(Gtk.Window):
             "How long RSSI must stay below the threshold (or device unseen)"
             " before the screen locks. Helps avoid brief signal dips."
         )
-        gen_grid.attach(lbl_grace, 0, 4, 2, 1)
+        gen_grid.attach(lbl_grace, 0, 6, 2, 1)
 
         adjustment_grace = Gtk.Adjustment(value=initial.grace_period_sec, lower=1, upper=60, step_increment=1)
         self.spn_grace = Gtk.SpinButton()
@@ -175,7 +193,16 @@ class SettingsWindow(Gtk.Window):
         self.spn_grace.set_tooltip_text(
             "Seconds to tolerate weak/no signal before locking (e.g., 8 seconds)."
         )
-        gen_grid.attach(self.spn_grace, 2, 4, 2, 1)
+        gen_grid.attach(self.spn_grace, 2, 6, 2, 1)
+
+        # General tab section header: Startup
+        hdr_startup = Gtk.Label()
+        try:
+            hdr_startup.set_markup("<b>Startup</b>")
+        except Exception:
+            hdr_startup.set_text("Startup")
+        hdr_startup.set_xalign(0)
+        gen_grid.attach(hdr_startup, 0, 7, 4, 1)
 
         # Autostart at login
         self.chk_autostart = Gtk.CheckButton.new_with_label("Start at login")
@@ -183,7 +210,7 @@ class SettingsWindow(Gtk.Window):
             "Enable to launch Bluetooth Screen Lock automatically when you sign in."
         )
         self.chk_autostart.set_active(initial.autostart)
-        gen_grid.attach(self.chk_autostart, 0, 5, 4, 1)
+        gen_grid.attach(self.chk_autostart, 0, 8, 4, 1)
 
         # Autostart delay
         lbl_delay = Gtk.Label(label="Start delay (sec):")
@@ -191,7 +218,7 @@ class SettingsWindow(Gtk.Window):
         lbl_delay.set_tooltip_text(
             "Delay after login before starting the app."
         )
-        gen_grid.attach(lbl_delay, 0, 6, 2, 1)
+        gen_grid.attach(lbl_delay, 0, 9, 2, 1)
 
         adjustment_delay = Gtk.Adjustment(value=max(0, int(getattr(initial, 'start_delay_sec', 0))), lower=0, upper=600, step_increment=1)
         self.spn_delay = Gtk.SpinButton()
@@ -199,7 +226,7 @@ class SettingsWindow(Gtk.Window):
         self.spn_delay.set_digits(0)
         self.spn_delay.set_tooltip_text("0 for no delay. Typical values: 5–30 seconds.")
         self.spn_delay.set_sensitive(self.chk_autostart.get_active())
-        gen_grid.attach(self.spn_delay, 2, 6, 2, 1)
+        gen_grid.attach(self.spn_delay, 2, 9, 2, 1)
 
         def _toggle_delay(_btn: Gtk.CheckButton) -> None:
             self.spn_delay.set_sensitive(_btn.get_active())
@@ -237,14 +264,15 @@ class SettingsWindow(Gtk.Window):
             "If the device isn't detected for this many seconds, treat RSSI as unknown.\n"
             "Prevents stale high RSSI from blocking 'away'."
         )
-        adv_grid.attach(lbl_stale, 0, 2, 2, 1)
+        # Place under Stability section
+        adv_grid.attach(lbl_stale, 0, 6, 2, 1)
 
         adjustment_stale = Gtk.Adjustment(value=max(1, int(getattr(initial, 'stale_after_sec', 6))), lower=1, upper=60, step_increment=1)
         self.spn_stale = Gtk.SpinButton()
         self.spn_stale.set_adjustment(adjustment_stale)
         self.spn_stale.set_digits(0)
         self.spn_stale.set_tooltip_text("Seconds before RSSI is considered stale/unknown.")
-        adv_grid.attach(self.spn_stale, 2, 2, 2, 1)
+        adv_grid.attach(self.spn_stale, 2, 6, 2, 1)
 
         # Scanning header
         hdr_scan = Gtk.Label()
@@ -270,14 +298,14 @@ class SettingsWindow(Gtk.Window):
         lbl_relock.set_tooltip_text(
             "Do not auto-lock for this many seconds after the device becomes NEAR (e.g., after unlocking)."
         )
-        adv_grid.attach(lbl_relock, 0, 7, 2, 1)
+        adv_grid.attach(lbl_relock, 0, 8, 2, 1)
 
         adjustment_relock = Gtk.Adjustment(value=max(0, int(getattr(initial, 're_lock_delay_sec', 0))), lower=0, upper=1800, step_increment=1)
         self.spn_relock = Gtk.SpinButton()
         self.spn_relock.set_adjustment(adjustment_relock)
         self.spn_relock.set_digits(0)
         self.spn_relock.set_tooltip_text("0 disables the cooldown. Typical: 10–120 seconds.")
-        adv_grid.attach(self.spn_relock, 2, 7, 2, 1)
+        adv_grid.attach(self.spn_relock, 2, 8, 2, 1)
 
         # Scan interval
         lbl_scan = Gtk.Label(label="Scan interval (sec):")
@@ -318,14 +346,14 @@ class SettingsWindow(Gtk.Window):
         lbl_cycle_rl.set_tooltip_text(
             "Global rate limit: allow at most one lock+unlock cycle per this many minutes. 0 = unlimited."
         )
-        adv_grid.attach(lbl_cycle_rl, 0, 9, 2, 1)
+        adv_grid.attach(lbl_cycle_rl, 0, 10, 2, 1)
 
         adjustment_cycle_rl = Gtk.Adjustment(value=max(0, int(getattr(initial, 'cycle_rate_limit_min', 0))), lower=0, upper=240, step_increment=1)
         self.spn_cycle_rl = Gtk.SpinButton()
         self.spn_cycle_rl.set_adjustment(adjustment_cycle_rl)
         self.spn_cycle_rl.set_digits(0)
         self.spn_cycle_rl.set_tooltip_text("0 disables; typical values: 1–10 minutes.")
-        adv_grid.attach(self.spn_cycle_rl, 2, 9, 2, 1)
+        adv_grid.attach(self.spn_cycle_rl, 2, 10, 2, 1)
 
         # Logging header
         hdr_logging = Gtk.Label()
@@ -334,7 +362,7 @@ class SettingsWindow(Gtk.Window):
         except Exception:
             hdr_logging.set_text("Logging")
         hdr_logging.set_xalign(0)
-        adv_grid.attach(hdr_logging, 0, 10, 4, 1)
+        adv_grid.attach(hdr_logging, 0, 11, 4, 1)
 
         # Near debounce (consecutive scans) — Advanced
         lbl_near_debounce = Gtk.Label(label="Near debounce (scans):")
@@ -343,7 +371,7 @@ class SettingsWindow(Gtk.Window):
             "Require this many consecutive scans above the near trigger (threshold + hysteresis)\n"
             "before treating the device as NEAR. Mitigates brief spikes/spoofing."
         )
-        adv_grid.attach(lbl_near_debounce, 0, 6, 2, 1)
+        adv_grid.attach(lbl_near_debounce, 0, 7, 2, 1)
 
         adjustment_near_debounce = Gtk.Adjustment(
             value=max(1, int(getattr(initial, 'near_consecutive_scans', 2))), lower=1, upper=10, step_increment=1
@@ -352,7 +380,7 @@ class SettingsWindow(Gtk.Window):
         self.spn_near_debounce.set_adjustment(adjustment_near_debounce)
         self.spn_near_debounce.set_digits(0)
         self.spn_near_debounce.set_tooltip_text("1 = immediate; 2–3 recommended.")
-        adv_grid.attach(self.spn_near_debounce, 2, 6, 2, 1)
+        adv_grid.attach(self.spn_near_debounce, 2, 7, 2, 1)
 
         # Rate limiting header
         hdr_rate = Gtk.Label()
@@ -361,7 +389,7 @@ class SettingsWindow(Gtk.Window):
         except Exception:
             hdr_rate.set_text("Rate limiting")
         hdr_rate.set_xalign(0)
-        adv_grid.attach(hdr_rate, 0, 8, 4, 1)
+        adv_grid.attach(hdr_rate, 0, 9, 4, 1)
 
         # Near Command tab headers
         hdr_exec = Gtk.Label()
@@ -454,10 +482,11 @@ class SettingsWindow(Gtk.Window):
         # File logging toggle (Advanced)
         self.chk_file_logging = Gtk.CheckButton.new_with_label("Write log file")
         self.chk_file_logging.set_tooltip_text(
-            "Enable writing logs to a rotating file in addition to stdout/stderr."
+            "Enable writing logs to a rotating file in addition to stdout/stderr.\n"
+            "Note: this setting takes effect after restarting the app."
         )
         self.chk_file_logging.set_active(bool(getattr(initial, 'file_logging_enabled', False)))
-        adv_grid.attach(self.chk_file_logging, 0, 11, 2, 1)
+        adv_grid.attach(self.chk_file_logging, 0, 12, 2, 1)
 
         # Timing header and controls
         hdr_timing = Gtk.Label()
@@ -508,7 +537,7 @@ class SettingsWindow(Gtk.Window):
         except Exception:
             logger.exception("Failed to compute default log path")
             self.lbl_log_path.set_text("Log file: <unknown>")
-        adv_grid.attach(self.lbl_log_path, 2, 12, 2, 1)
+        adv_grid.attach(self.lbl_log_path, 2, 13, 2, 1)
 
         # Buttons row under the notebook
         btn_box = Gtk.Box(spacing=10)
