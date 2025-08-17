@@ -1,3 +1,25 @@
+bluetooth-screen-lock (0.1.19-1) unstable; urgency=medium
+
+  [ Peter Nearing ]
+  * Autostart writes: explicitly chmod final .desktop to 0644 after atomic
+    replace or DesktopEntry.write() to negate umask surprises; keep consistent
+    with config/log handling.
+  * Autostart Exec wrapping: stop string-hacking and use pyxdg DesktopEntry
+    to parse/update Exec where available; fallback path minimally rewrites only
+    Exec=. Insert startup delay using a token-preserving wrapper so field codes
+    (e.g. %u/%f) expand correctly:
+      /bin/sh -c 'sleep D; exec "$0" "$@"' ORIGINAL_ARGS...
+  * Autostart generation: when creating a new entry (no user applications
+    desktop found), build the .desktop via pyxdg when available to ensure
+    correct key formatting; fallback to manual text with the same keys.
+  * Settings/monitor: add optional "Allow name matching when MAC unavailable"
+    toggle. When enabled and only a device name is set, monitoring is allowed
+    with name-based matching; default remains MAC-based for reliability.
+    Update tray warning/banner text to reflect the toggle's state.
+  * Bump upstream version to 0.1.19.
+
+ -- Peter Nearing <me@peternearing.ca>  Sun, 17 Aug 2025 15:21:03 -0400
+
 bluetooth-screen-lock (0.1.18-1) unstable; urgency=medium
 
   [ Peter Nearing ]
